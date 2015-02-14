@@ -1,9 +1,16 @@
 /* EE122 Server Program */
-#include <stdio.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+# include <stdio.h>
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <netinet/in.h>
+# include <stdlib.h> 
+# include <string.h>
+# include <strings.h>
 
+void error(char *msg){
+	perror(msg);
+	exit(1);
+}
 
 /* The server program is to transfer a specified file to any connecting clients.   
 It only needs to connect to one client at a time, but it should be able to 
@@ -38,6 +45,10 @@ serve multiple clients in sequence without needing to be restarted. */
 
 int main(int argc, char** argv) {
 	// recall command line arguments by doing argv[0]....argv[4]
+	if (argc != 6) {
+		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>")
+	}
 
+	
 
 }
