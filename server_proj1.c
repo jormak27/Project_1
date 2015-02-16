@@ -6,6 +6,7 @@
 # include <stdlib.h> 
 # include <string.h>
 # include <strings.h>
+# include <netdb.h>  // added in just in case
 
 # define QUEUE 10 
 
