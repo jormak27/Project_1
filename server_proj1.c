@@ -6,6 +6,7 @@
 # include <stdlib.h> 
 # include <string.h>
 # include <strings.h>
+# include <netdb.h>  // added in just in case
 
 # define QUEUE 10 
 
@@ -92,27 +93,22 @@ void Mode_0(struct Inputs *userInput){
 	if (NULL==fp){
 		error("ERROR: File did not open ");
 	}
-	fgets(buffer,userInput -> packet_size,fp);
 
-	printf("this is a buffer %s\n\n",buffer);
-	/// send buffer
-	fgets(buffer,userInput -> packet_size,fp);
-
-	printf("this is a buffer %s\n\n",buffer);
-
-	printf("this is a buffer %s\n",buffer);
 	
 
 
-	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
-	if (newsockfd < 0)
-		error("ERROR on accept");
+	//newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
+	//if (newsockfd < 0)
+	//	error("ERROR on accept");
 
 	// first get the file via fopen or something
 	// then open the file to divide into 1000 byte chunks
 	// send each chunk between delay 
 
-
+	while(fgets(buffer,userInput -> packet_size,fp) != NULL) {
+		printf("this is a buffer %s\n\n",buffer);
+		usleep(userInput -> packet_delay);
+	}
 // 	n = write(newsockfd, "I got your message", 18);
 // 	if (n<0) error("ERROR writing to the socket");
 // 	return 0;
