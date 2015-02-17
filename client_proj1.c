@@ -43,26 +43,29 @@ void Mode_0(struct Inputs *userInput)
   bcopy((char *) server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
   serv_addr.sin_port = htons(userInput -> portno);
 
-  n = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
-  if (0 < n) {
-    error("ERROR connecting");
-  }
-  printf("Finished connecting");
-
-
   FILE *fp; 
   fp = fopen(userInput -> recv_file, "w");  // This assumes that the file is in the same directory in which we're runing this program 
   printf("file was opened \n");
   if (NULL==fp){
     error("ERROR: File did not open ");
   }
-  // receiving
-  n = read(sockfd, buffer, sizeof(buffer));
-  if (n < 0) error("ERROR inital reading from socket");
-  while(fputs(buffer, fp) != EOF) {
-    n = read(sockfd, buffer, sizeof(buffer));
-    if (n < 0) error("ERROR reading from socket");
+  bzero(buffer, 256); // need to bzero buffer before it works!!!
+  n = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+  if (0 < n) {
+    error("ERROR connecting");
   }
+  //printf("Finished connecting");
+
+  // receiving
+  n = read(sockfd, buffer, 255);
+  //n = read(sockfd, buffer, sizeof(buffer));
+  if (n < 0) error("ERROR inital reading from socket");
+  printf("%s\n", buffer);
+
+  //while(fputs(buffer, fp) != EOF) {
+  //  n = read(sockfd, buffer, sizeof(buffer));
+  //  if (n < 0) error("ERROR reading from socket");
+  //}
 
   printf("User input: \n\n%d %s %d %s %s \n", 
   userInput -> mode,

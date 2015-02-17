@@ -81,18 +81,18 @@ void Mode_0(struct Inputs *userInput){
 	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
 	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	
-	if (0>n){
-		error("ERROR: Error on binding");
-	}
-	n = listen(sockfd, QUEUE);
-	clilen = sizeof(cli_addr); 
-	
 	FILE *fp; 
 	fp = fopen(userInput -> filename, "r");  // This assumes that the file is in the same directory in which we're runing this program 
 	printf("file was opened \n");
 	if (NULL==fp){
 		error("ERROR: File did not open ");
 	}
+
+	if (0>n){
+		error("ERROR: Error on binding");
+	}
+	listen(sockfd, QUEUE);
+	clilen = sizeof(cli_addr); 
 
 	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
 	if (newsockfd < 0)
@@ -102,12 +102,21 @@ void Mode_0(struct Inputs *userInput){
 	// then open the file to divide into 1000 byte chunks
 	// send each chunk between delay 
 
-	while(fgets(buffer,userInput -> packet_size,fp) != NULL) {
+	//while(fgets(buffer,userInput -> packet_size,fp) != NULL) {
 		//printf("this is a buffer %s\n\n",buffer);
-		n = write(newsockfd, buffer, userInput -> packet_size);
-		if (n < 0) error("ERROR writing to the socket.");
-		usleep(userInput -> packet_delay);
-	}
+	//	n = write(newsockfd, buffer, userInput -> packet_size);
+	//	if (n < 0) error("ERROR writing to the socket.");
+	//	usleep(userInput -> packet_delay);
+	//}
+
+	bzero(buffer, userInput -> packet_size);
+    fgets(buffer, (userInput -> packet_size)-1,stdin);
+    //n = write(newsockfd,"I got your message",18);
+    n = write(newsockfd,buffer,strlen(buffer));
+    if (n < 0) 
+        error("ERROR writing to socket");
+    printf("\nsent message.");
+    //n = read(newsockfd, buffer, strlen(buffer));
 // 	n = write(newsockfd, "I got your message", 18);
 // 	if (n<0) error("ERROR writing to the socket");
 // 	return 0;
