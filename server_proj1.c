@@ -94,19 +94,18 @@ void Mode_0(struct Inputs *userInput){
 		error("ERROR: File did not open ");
 	}
 
-	
-
-
-	//newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
-	//if (newsockfd < 0)
-	//	error("ERROR on accept");
-
+	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
+	if (newsockfd < 0)
+		error("ERROR on accept");
+	printf("Accepted Connection\n");
 	// first get the file via fopen or something
 	// then open the file to divide into 1000 byte chunks
 	// send each chunk between delay 
 
 	while(fgets(buffer,userInput -> packet_size,fp) != NULL) {
-		printf("this is a buffer %s\n\n",buffer);
+		//printf("this is a buffer %s\n\n",buffer);
+		n = write(newsockfd, buffer, userInput -> packet_size);
+		if (n < 0) error("ERROR writing to the socket.");
 		usleep(userInput -> packet_delay);
 	}
 // 	n = write(newsockfd, "I got your message", 18);
