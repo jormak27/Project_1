@@ -28,7 +28,10 @@ void Mode_0(struct Inputs *userInput)
   int sockfd, portno, n;
   struct sockaddr_in serv_addr; 
   struct hostent *server; // in header file 
+  int size = 1000;
   char *buffer;
+  // what if pass in this - so assume client knows
+  //char buffer[size];
 
   sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
@@ -49,7 +52,8 @@ void Mode_0(struct Inputs *userInput)
   if (NULL==fp){
     error("ERROR: File did not open ");
   }
-  bzero(buffer, 256); // need to bzero buffer before it works!!!
+  //bzero(buffer, sizeof(buffer)); // need to bzero buffer before it works!!!
+  bzero(buffer, size);
   n = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
   if (0 < n) {
     error("ERROR connecting");
@@ -57,22 +61,29 @@ void Mode_0(struct Inputs *userInput)
   //printf("Finished connecting");
 
   // receiving
-  n = read(sockfd, buffer, 255);
+  n = read(sockfd, buffer, size);
   //n = read(sockfd, buffer, sizeof(buffer));
   if (n < 0) error("ERROR inital reading from socket");
   printf("%s\n", buffer);
-
+  fputs(buffer, fp); // for some reason missing last charater!!!
+  //fprintf(fp, "%s", buffer ); // both take out last character!
   //while(fputs(buffer, fp) != EOF) {
   //  n = read(sockfd, buffer, sizeof(buffer));
   //  if (n < 0) error("ERROR reading from socket");
   //}
+  n = read(sockfd, buffer, size);
+  if (n < 0) error("ERROR reading from socket");
+  printf("%s\n", buffer);
+  fputs(buffer, fp);
 
-  printf("User input: \n\n%d %s %d %s %s \n", 
-  userInput -> mode,
-  userInput -> ip_addr,
-  userInput -> portno,
-  userInput -> recv_file, 
-  userInput -> stats_filename);
+  printf("wrote to the file twice");
+
+  //printf("User input: \n\n%d %s %d %s %s \n", 
+  //userInput -> mode,
+  //userInput -> ip_addr,
+  //userInput -> portno,
+  //userInput -> recv_file, 
+  //userInput -> stats_filename);
 
 }
 

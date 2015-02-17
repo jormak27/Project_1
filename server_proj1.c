@@ -101,20 +101,33 @@ void Mode_0(struct Inputs *userInput){
 	// first get the file via fopen or something
 	// then open the file to divide into 1000 byte chunks
 	// send each chunk between delay 
-
+	
+	bzero(buffer, userInput -> packet_size);
+	if (fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) { // I don't know why we need the + 1 !!!
+		printf("this is a buffer %s\n\n",buffer);
+		n = write(newsockfd, buffer, userInput -> packet_size);
+		if (n < 0) error("ERROR writing to the socket.");
+		usleep(userInput -> packet_delay);
+	}
+	if (fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) { // I don't know why we need the + 1 !!!
+		printf("this is a buffer %s\n\n",buffer);
+		n = write(newsockfd, buffer, userInput -> packet_size);
+		if (n < 0) error("ERROR writing to the socket.");
+		usleep(userInput -> packet_delay);
+	}
 	//while(fgets(buffer,userInput -> packet_size,fp) != NULL) {
-		//printf("this is a buffer %s\n\n",buffer);
+	//	printf("this is a buffer %s\n\n",buffer);
 	//	n = write(newsockfd, buffer, userInput -> packet_size);
 	//	if (n < 0) error("ERROR writing to the socket.");
 	//	usleep(userInput -> packet_delay);
 	//}
 
-	bzero(buffer, userInput -> packet_size);
-    fgets(buffer, (userInput -> packet_size)-1,stdin);
+
+    //fgets(buffer, (userInput -> packet_size)-1,stdin);
     //n = write(newsockfd,"I got your message",18);
-    n = write(newsockfd,buffer,strlen(buffer));
-    if (n < 0) 
-        error("ERROR writing to socket");
+    //n = write(newsockfd,buffer,strlen(buffer));
+    //if (n < 0) 
+    //    error("ERROR writing to socket");
     printf("\nsent message.");
     //n = read(newsockfd, buffer, strlen(buffer));
 // 	n = write(newsockfd, "I got your message", 18);
