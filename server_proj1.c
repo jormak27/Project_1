@@ -26,13 +26,6 @@ struct Inputs
 };
 
 void Mode_0(struct Inputs *userInput){
-	//print for error checking 
-	// printf("%d %d %s %d %f \n", 
-	// userInput -> mode,
-	// userInput -> portno,
-	// userInput -> filename,
-	// userInput -> packet_size, 
-	// userInput -> packet_delay);
 
 	// assign a connection-oriented socket 
 	int sockfd, newsockfd, clilen, n;
@@ -68,23 +61,8 @@ void Mode_0(struct Inputs *userInput){
 	if (newsockfd < 0)
 		error("ERROR on accept");
 	printf("Accepted Connection\n");
-	// first get the file via fopen or something
-	// then open the file to divide into 1000 byte chunks
-	// send each chunk between delay 
 	
 	bzero(buffer, userInput -> packet_size);
-/*	if (fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) { // I don't know why we need the + 1 !!!
-		printf("this is a buffer %s\n\n",buffer);
-		n = write(newsockfd, buffer, userInput -> packet_size);
-		if (n < 0) error("ERROR writing to the socket.");
-		usleep(userInput -> packet_delay);
-	}
-	if (fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) { // I don't know why we need the + 1 !!!
-		printf("this is a buffer %s\n\n",buffer);
-		n = write(newsockfd, buffer, userInput -> packet_size);
-		if (n < 0) error("ERROR writing to the socket.");
-		usleep(userInput -> packet_delay);
-	} */
 
 	while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
 		//printf("this is a buffer %s\n\n",buffer);
@@ -123,11 +101,3 @@ int main(int argc, char** argv) {
 	}
 
 }
-
-
-// void return_args(char **arguments){
-// 	int i;
-// 	arguments[1]
-
-
-// }
