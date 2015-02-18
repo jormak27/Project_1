@@ -79,6 +79,7 @@ void Mode_0(struct Inputs *userInput){
 
     	printf("sent message\n"); //why does this not print out?
     }
+    close(fp);
 }
 
 int main(int argc, char** argv) {

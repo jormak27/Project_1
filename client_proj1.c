@@ -7,6 +7,7 @@
 # include <string.h>
 # include <strings.h>
 # include <netdb.h> 
+# include <time.h>
 
 void error(char *msg)
 {
@@ -35,6 +36,9 @@ void Mode_0(struct Inputs *userInput)
   // also if I put size at 3000, get open_stackdumpfile
   char *buffer;
 
+  // big timer to time how long the connection is
+  //clock_t begin, end
+  //double time_spent;
 
   sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
@@ -57,11 +61,14 @@ void Mode_0(struct Inputs *userInput)
   }
 
   bzero(buffer, size); // why is I take this out, stack dump
+
+  // does timer start here?
+  clock_t begin = clock();
   n = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
   if (0 < n) {
     error("ERROR connecting");
   }
-  printf("Finished connecting");
+  printf("Finished connecting\n");
 
   // receiving 
   while(1) {
@@ -72,9 +79,24 @@ void Mode_0(struct Inputs *userInput)
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp);  
   }
+  clock_t end = clock(); // connection should end here
 
-  printf("wrote to the file");
+  int len = ftell(fp); // tells where our file pointer is in file
+  printf("Total size of file.txt = %d bytes\n", len);
 
+  double time_spent = (double)((end-begin) / CLOCKS_PER_SEC); // CLOCKS_PER_SEC is defined in <time.h>
+  // time spent keeps should up as 0.00000
+  printf("%f\n", (double)begin);
+  printf("%f\n", (double)end);
+  printf("\nElasped: %f seconds\n", time_spent);
+  // time is not working
+
+  // now tell how big our file is
+
+
+  fclose(fp);
+
+  printf("wrote to the file and closed it");
 }
 
 
