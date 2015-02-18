@@ -39,6 +39,8 @@ void Mode_0(struct Inputs *userInput){
 	struct sockaddr_in serv_addr, cli_addr; 
 	char *buffer;
 
+	// for terminating clause to client
+
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
 	if (0>sockfd){
 		error("ERROR Opening socket");
@@ -85,15 +87,17 @@ void Mode_0(struct Inputs *userInput){
 	} */
 
 	while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
-		printf("this is a buffer %s\n\n",buffer);
+		//printf("this is a buffer %s\n\n",buffer);
 		n = write(newsockfd, buffer, userInput -> packet_size);
 		if (n < 0) error("ERROR writing to the socket.");
 		usleep(userInput -> packet_delay);
 	} 
-	n = write(newsockfd, "End", 3);
-	if (n < 0) error("ERROR writing to the socket.");
+	char *terminator = "End"; // for some reason if I declare this above, it disappears!!
+	int terminator_size = 3;
+	n = write(newsockfd, terminator, terminator_size);
+	if (n < 0) error("ERROR writing terminator to the socket.");
 
-    printf("\nsent message.");
+    printf("\nsent message."); //why does this not print out?
 }
 
 int main(int argc, char** argv) {

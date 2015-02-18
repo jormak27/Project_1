@@ -29,6 +29,9 @@ void Mode_0(struct Inputs *userInput)
   struct sockaddr_in serv_addr; 
   struct hostent *server; // in header file 
   int size = 2000;  // what if pass in this - so assume client knows
+  // note that when I tried to send at 10,000 bytes and 5,000 byes
+  // connection reset by peer error.
+  // also if I put size at 3000, get open_stackdumpfile
   char *buffer;
 
 
@@ -82,10 +85,12 @@ void Mode_0(struct Inputs *userInput)
   printf("buffer: %s\n", buffer);
   if (strcmp("End", buffer) == 0) printf("Success"); */
 
-/* 5. Making it terminate on "End" */
+/* Final Solution that works!!! */
+/* 5. Making it terminate on "End" */ 
 while(1) {
   bzero(buffer, size);
   n = read(sockfd, buffer, size);
+  //printf("buffer: %s\n", buffer);
   if (n < 0) error("ERROR inital reading from socket");
   if (strcmp("End", buffer) == 0) break;
   fputs(buffer, fp);  
