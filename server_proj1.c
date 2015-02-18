@@ -43,7 +43,13 @@ void Mode_0(struct Inputs *userInput){
 	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
 	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
 	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	
+	if (0>n){
+		error("ERROR: Error on binding");
+	}
+	listen(sockfd, QUEUE);
+	clilen = sizeof(cli_addr); 
+
+	// open file
 	FILE *fp; 
 	fp = fopen(userInput -> filename, "r");  // This assumes that the file is in the same directory in which we're runing this program 
 	printf("file was opened \n");
@@ -51,31 +57,28 @@ void Mode_0(struct Inputs *userInput){
 		error("ERROR: File did not open ");
 	}
 
-	if (0>n){
-		error("ERROR: Error on binding");
-	}
-	listen(sockfd, QUEUE);
-	clilen = sizeof(cli_addr); 
-
-	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
-	if (newsockfd < 0)
-		error("ERROR on accept");
-	printf("Accepted Connection\n");
+	while(1) {
+		rewind(fp); // puts file pointer back to beginning
+		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
+		if (newsockfd < 0)
+			error("ERROR on accept");
+		printf("Accepted Connection\n");
 	
-	bzero(buffer, userInput -> packet_size);
+		bzero(buffer, userInput -> packet_size);
 
-	while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
-		//printf("this is a buffer %s\n\n",buffer);
-		n = write(newsockfd, buffer, userInput -> packet_size);
-		if (n < 0) error("ERROR writing to the socket.");
-		usleep(userInput -> packet_delay);
-	} 
-	char *terminator = "End"; // for some reason if I declare this above, it disappears!!
-	int terminator_size = 3;
-	n = write(newsockfd, terminator, terminator_size);
-	if (n < 0) error("ERROR writing terminator to the socket.");
+		while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
+			//printf("this is a buffer %s\n\n",buffer);
+			n = write(newsockfd, buffer, userInput -> packet_size);
+			if (n < 0) error("ERROR writing to the socket.");
+			usleep(userInput -> packet_delay);
+		} 
+		char *terminator = "End"; // for some reason if I declare this above, it disappears!!
+		int terminator_size = 3;
+		n = write(newsockfd, terminator, terminator_size);
+		if (n < 0) error("ERROR writing terminator to the socket.");
 
-    printf("\nsent message."); //why does this not print out?
+    	printf("sent message\n"); //why does this not print out?
+    }
 }
 
 int main(int argc, char** argv) {

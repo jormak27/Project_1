@@ -63,9 +63,7 @@ void Mode_0(struct Inputs *userInput)
   }
   printf("Finished connecting");
 
-  // receiving
-/* Final Solution that works!!! */
-/* 5. Making it terminate on "End" */ 
+  // receiving 
   while(1) {
     bzero(buffer, size);
     n = read(sockfd, buffer, size);
