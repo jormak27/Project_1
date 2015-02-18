@@ -5,7 +5,7 @@
 # include <stdlib.h> 
 # include <string.h>
 # include <strings.h>
-# include <netdb.h> // fixes the bcopy!! because hostent defined in here. For some reason was missing..
+# include <netdb.h> 
 
 void error(char *msg)
 {
@@ -28,10 +28,9 @@ void Mode_0(struct Inputs *userInput)
   int sockfd, portno, n;
   struct sockaddr_in serv_addr; 
   struct hostent *server; // in header file 
-  int size = 1000;
+  int size = 2000;  // what if pass in this - so assume client knows
   char *buffer;
-  // what if pass in this - so assume client knows
-  //char buffer[size];
+
 
   sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
@@ -61,29 +60,77 @@ void Mode_0(struct Inputs *userInput)
   //printf("Finished connecting");
 
   // receiving
+
+
+/* 1. just having multiple reads */
+/*
   n = read(sockfd, buffer, size);
-  //n = read(sockfd, buffer, sizeof(buffer));
   if (n < 0) error("ERROR inital reading from socket");
-  printf("%s\n", buffer);
-  fputs(buffer, fp); // for some reason missing last charater!!!
-  //fprintf(fp, "%s", buffer ); // both take out last character!
-  //while(fputs(buffer, fp) != EOF) {
-  //  n = read(sockfd, buffer, sizeof(buffer));
-  //  if (n < 0) error("ERROR reading from socket");
-  //}
+  //n = read(sockfd, buffer, sizeof(buffer));
+  //if (n < 0) error("ERROR inital reading from socket");
+  //printf("%s\n", buffer);
+  fputs(buffer, fp); 
+  //fprintf(fp, "%s", buffer ); // both work
+  bzero(buffer, size);
   n = read(sockfd, buffer, size);
   if (n < 0) error("ERROR reading from socket");
-  printf("%s\n", buffer);
+  //printf("buffer: %s\n", buffer);
   fputs(buffer, fp);
+  bzero(buffer, size);
+  n = read(sockfd, buffer, size);
+  if (n < 0) error("ERROR reading from socket");
+  printf("buffer: %s\n", buffer);
+  if (strcmp("End", buffer) == 0) printf("Success"); */
 
-  printf("wrote to the file twice");
+/* 5. Making it terminate on "End" */
+while(1) {
+  bzero(buffer, size);
+  n = read(sockfd, buffer, size);
+  if (n < 0) error("ERROR inital reading from socket");
+  if (strcmp("End", buffer) == 0) break;
+  fputs(buffer, fp);  
+}
 
-  //printf("User input: \n\n%d %s %d %s %s \n", 
-  //userInput -> mode,
-  //userInput -> ip_addr,
-  //userInput -> portno,
-  //userInput -> recv_file, 
-  //userInput -> stats_filename);
+/* 4. Trying to send some message that says "End" */
+/*  n = read(sockfd, buffer, size);
+  printf("%s\n", buffer);
+  if (buffer == "End") {
+    printf("here");  
+  } */
+  
+/* 3. trying to use read() as condition */
+/*  while(n > 0) { // condition should be something else
+  //while(fprintf(fp, "%s", buffer) > 0) {
+  // fputs(buffer, fp);
+  // while(feof(fp) != 0) {
+    printf("inside the while loop");
+    printf("buffer: %s\n", buffer);
+    fputs(buffer, fp); 
+    n = read(sockfd, buffer, size);
+    if (n < 0) error("ERROR reading from socket");
+    } */
+
+/* 2. trying to use fputs as condition */
+/*
+  while(fputs(buffer, fp) > 0) {
+    n = read(sockfd, buffer, size);
+    if (n < 0) error("ERROR reading from socket");
+  } */
+
+/*  n = read(sockfd, buffer, sizeof(buffer));
+  if (n < 0) error("ERROR reading from socket");
+  fputs(buffer, fp); */
+ // ended up writing twice */
+
+  printf("wrote to the file");
+
+/*
+  printf("User input: \n\n%d %s %d %s %s \n", 
+  userInput -> mode,
+  userInput -> ip_addr,
+  userInput -> portno,
+  userInput -> recv_file, 
+  userInput -> stats_filename); */
 
 }
 
