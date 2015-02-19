@@ -40,6 +40,9 @@ void Mode_0(struct Inputs *userInput)
   //clock_t begin, end
   //double time_spent;
 
+  // does timer start here? //had to place it all the way up here to get somewhat accurate readings
+  clock_t begin;
+  begin = clock();
   sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
     error("ERROR Opening socket");
@@ -62,8 +65,6 @@ void Mode_0(struct Inputs *userInput)
 
   bzero(buffer, size); // why is I take this out, stack dump
 
-  // does timer start here?
-  clock_t begin = clock();
   n = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
   if (0 < n) {
     error("ERROR connecting");
@@ -79,20 +80,19 @@ void Mode_0(struct Inputs *userInput)
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp);  
   }
-  clock_t end = clock(); // connection should end here
-
+  begin = clock() - begin; // connection should end here
+  //begin = clock();
+  // tells how big our file is
   int len = ftell(fp); // tells where our file pointer is in file
   printf("Total size of file.txt = %d bytes\n", len);
 
-  double time_spent = (double)((end-begin) / CLOCKS_PER_SEC); // CLOCKS_PER_SEC is defined in <time.h>
-  // time spent keeps should up as 0.00000
+
+  double time_spent = ((double) begin) / CLOCKS_PER_SEC; // CLOCKS_PER_SEC is defined in <time.h>
   printf("%f\n", (double)begin);
-  printf("%f\n", (double)end);
   printf("\nElasped: %f seconds\n", time_spent);
-  // time is not working
-
-  // now tell how big our file is
-
+  // time is not working because my time spent for some reason is faster than one clock cycle on my laptop, or something like that
+  
+  /* now will try POSIX-standard clock_gettime function - someone said is not ansi C*/ 
 
   fclose(fp);
 
@@ -102,7 +102,7 @@ void Mode_0(struct Inputs *userInput)
 
 
 int main(int argc, char *argv[]) // Three arguments provided:  client host port (host is your localhost if both processes are on your own machine)
-{
+{ 
   if (argc != 6) {
     error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename>");
   }
