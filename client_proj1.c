@@ -44,10 +44,12 @@ void Mode_0(struct Inputs *userInput)
   // also if I put size at 3000, get open_stackdumpfile
   char *buffer;
 
+  /* wipe our stat file */
+  // possible w/o memory dying out?
+
   /* declarations for clock_gettime */
   uint64_t diff;
   struct timespec start, end;
-  int i;
 
   clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
 
@@ -64,9 +66,10 @@ void Mode_0(struct Inputs *userInput)
   bcopy((char *) server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
   serv_addr.sin_port = htons(userInput -> portno);
 
+  // file to write to
   FILE *fp; 
   fp = fopen(userInput -> recv_file, "w");  // This assumes that the file is in the same directory in which we're runing this program 
-  printf("file was opened \n");
+  printf("file to write to was opened \n");
   if (NULL==fp){
     error("ERROR: File did not open ");
   }
@@ -79,24 +82,37 @@ void Mode_0(struct Inputs *userInput)
   }
   printf("Finished connecting\n");
 
+  FILE *fp_stat; 
+  fp_stat = fopen(userInput -> stats_filename, "w");  // This assumes that the file is in the same directory in which we're runing this program 
+  printf("file to write stats to was opened \n");
+  if (NULL==fp_stat) error("ERROR: File did not open ");
+
   // receiving
-  //int condition = 1;
   while(1) {
+    struct timespec start_in_loop, end_in_loop;
     bzero(buffer, size);
+    clock_gettime(CLOCK_MONOTONIC, &start_in_loop);  
     n = read(sockfd, buffer, size);
-    printf("buffer: %s\n", buffer);
-    //printf("%d\n", sizeof(buffer));
+    //printf("buffer: %s\n", buffer);
     if (n < 0) error("ERROR inital reading from socket"); 
-    if (strcmp("End", buffer) == 0) break; //condition = 0; // condition is not working now!!!
-    fputs(buffer, fp);
+    clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
+
+    // for stats text file
+    diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
+    fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
+    printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
+    if (strcmp("End", buffer) == 0) break;
+    fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
     //printf("condition: %d\n", condition);
   }
 
   // tells how big our file is
   int len = ftell(fp); // tells where our file pointer is in file
   printf("Total size of file.txt = %d bytes\n", len);
-
+  
+  fclose(fp_stat);
   fclose(fp);
+
 
   printf("wrote to the file and closed it.\n");
 
@@ -106,6 +122,7 @@ void Mode_0(struct Inputs *userInput)
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
   printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
+
 }
 
 
