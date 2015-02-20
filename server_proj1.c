@@ -16,8 +16,7 @@ void error(char *msg){
 }
 
 // structure for holding the user inputs 
-struct Inputs
-{
+struct Inputs {
 	int mode;
 	int portno;
 	char *filename;
@@ -67,7 +66,7 @@ void Mode_0(struct Inputs *userInput){
 		bzero(buffer, userInput -> packet_size);
 
 		while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
-			//printf("this is a buffer %s\n\n",buffer);
+			printf("this is a buffer %s\n\n",buffer);
 			n = write(newsockfd, buffer, userInput -> packet_size);
 			if (n < 0) error("ERROR writing to the socket.");
 			usleep(userInput -> packet_delay);
@@ -85,7 +84,7 @@ void Mode_0(struct Inputs *userInput){
 int main(int argc, char** argv) {
 	// recall command line arguments by doing argv[0]....argv[4]
 	if (argc != 6) {
-		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
+		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
 	}
 
 	int mode, portno, packet_size;

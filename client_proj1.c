@@ -9,6 +9,14 @@
 # include <netdb.h> 
 # include <time.h>
 
+/* for clock_gettime */
+# include <stdio.h>  /* for printf */
+# include <stdint.h> /* for uint64 definition */
+# include <stdlib.h> /* for exit() definition */
+# include <time.h> /* for clock_gettime */
+
+# define BILLION 1000000000L
+
 void error(char *msg)
 {
    perror(msg);
@@ -36,13 +44,13 @@ void Mode_0(struct Inputs *userInput)
   // also if I put size at 3000, get open_stackdumpfile
   char *buffer;
 
-  // big timer to time how long the connection is
-  //clock_t begin, end
-  //double time_spent;
+  /* declarations for clock_gettime */
+  uint64_t diff;
+  struct timespec start, end;
+  int i;
 
-  // does timer start here? //had to place it all the way up here to get somewhat accurate readings
-  clock_t begin;
-  begin = clock();
+  clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
+
   sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
     error("ERROR Opening socket");
@@ -71,32 +79,33 @@ void Mode_0(struct Inputs *userInput)
   }
   printf("Finished connecting\n");
 
-  // receiving 
+  // receiving
+  //int condition = 1;
   while(1) {
     bzero(buffer, size);
     n = read(sockfd, buffer, size);
-    //printf("buffer: %s\n", buffer);
-    if (n < 0) error("ERROR inital reading from socket");
-    if (strcmp("End", buffer) == 0) break;
-    fputs(buffer, fp);  
+    printf("buffer: %s\n", buffer);
+    //printf("%d\n", sizeof(buffer));
+    if (n < 0) error("ERROR inital reading from socket"); 
+    if (strcmp("End", buffer) == 0) break; //condition = 0; // condition is not working now!!!
+    fputs(buffer, fp);
+    //printf("condition: %d\n", condition);
   }
-  begin = clock() - begin; // connection should end here
-  //begin = clock();
+
   // tells how big our file is
   int len = ftell(fp); // tells where our file pointer is in file
   printf("Total size of file.txt = %d bytes\n", len);
 
-
-  double time_spent = ((double) begin) / CLOCKS_PER_SEC; // CLOCKS_PER_SEC is defined in <time.h>
-  printf("%f\n", (double)begin);
-  printf("\nElasped: %f seconds\n", time_spent);
-  // time is not working because my time spent for some reason is faster than one clock cycle on my laptop, or something like that
-  
-  /* now will try POSIX-standard clock_gettime function - someone said is not ansi C*/ 
-
   fclose(fp);
 
-  printf("wrote to the file and closed it");
+  printf("wrote to the file and closed it.\n");
+
+  /* now will try POSIX-standard clock_gettime function - someone said is not ansi C*/ 
+  /* finishing clock_gettime */
+  clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
+
+  diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
+  printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
 }
 
 
@@ -104,7 +113,7 @@ void Mode_0(struct Inputs *userInput)
 int main(int argc, char *argv[]) // Three arguments provided:  client host port (host is your localhost if both processes are on your own machine)
 { 
   if (argc != 6) {
-    error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename>");
+    error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename>");
   }
   
   struct Inputs userInput;
