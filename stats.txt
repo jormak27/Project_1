@@ -1,0 +1,3 @@
+elapsed time of packet = 229689 nanoseconds
+elapsed time of packet = 1007209768 nanoseconds
+elapsed time of packet = 1013976412 nanoseconds

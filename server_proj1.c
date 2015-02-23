@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 /* EE122 Server Program */
 # include <stdio.h>
 # include <sys/types.h>
@@ -7,7 +6,8 @@
 # include <stdlib.h> 
 # include <string.h>
 # include <strings.h>
-# include <netdb.h>  // added in just in case
+# include <netdb.h> 
+# include <time.h>
 
 # define QUEUE 10 
 
@@ -16,41 +16,8 @@ void error(char *msg){
 	exit(1);
 }
 
-
-/* The server program is to transfer a specified file to any connecting clients.   
-It only needs to connect to one client at a time, but it should be able to 
-serve multiple clients in sequence without needing to be restarted. */
-/*
-	Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>
-	
-	<mode> Either 0, 1, or 2.  This value indicates what type of connection to establish with the server.
-		   0 :  Connection-oriented sockets 
-		   1 :  Connectionless sockets 
-		   2 :  Connectionless sockets without checksum enabled
-
-	<port> The port number to use for the server
-
-	<filename> A path to a local file to host.  
-			When a client connects to the server, it will be served this file 
-			using the protocol specified by <mode>.
-
-	<packet_size> The size of each packet to send, in bytes.  
-			You will need to break the input file into packets of this size, 
-			and send the packets separately through the network.
-
-	<packet_delay> The server should sleep for this many seconds between sending packets.  
-			Note that the value can be expressed as a floating point value.  
-			For sleeping in fractions of a second, look at the man page for usleep().
-
-	Example: The following call will specify the server to use datagram sockets (UDP) 
-			 on port 33122, hosting a file called bar.txt in a folder named foo.  
-			 The program will send the file in packets of size 1000 bytes, with zero delay between packets.
-		./proj1_server 1 33122 foo/bar.txt 1000 0
-*/
-
 // structure for holding the user inputs 
-struct Inputs
-{
+struct Inputs {
 	int mode;
 	int portno;
 	char *filename;
@@ -59,20 +26,74 @@ struct Inputs
 };
 
 void Mode_0(struct Inputs *userInput){
-	//print for error checking 
-	// printf("%d %d %s %d %f \n", 
-	// userInput -> mode,
-	// userInput -> portno,
-	// userInput -> filename,
-	// userInput -> packet_size, 
-	// userInput -> packet_delay);
 
 	// assign a connection-oriented socket 
 	int sockfd, newsockfd, clilen, n;
 	struct sockaddr_in serv_addr, cli_addr; 
-	char *buffer;
+	char buffer[userInput -> packet_size];
+
+	// for terminating clause to client
 
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
+	if (0>sockfd){
+		error("ERROR Opening socket");
+	}
+	printf("this is the checksum for mode 0 %d",sum(sockfd));
+
+	bzero ((char*) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;   
+	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
+	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
+	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (0>n){
+		error("ERROR: Error on binding");
+	}
+	listen(sockfd, QUEUE);
+	clilen = sizeof(cli_addr); 
+
+	// open file
+	FILE *fp; 
+	fp = fopen(userInput -> filename, "r");  // This assumes that the file is in the same directory in which we're runing this program 
+	printf("file was opened \n");
+	if (NULL==fp){
+		error("ERROR: File did not open ");
+	}
+
+	while(1) {
+		rewind(fp); // puts file pointer back to beginning
+		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
+		if (newsockfd < 0)
+			error("ERROR on accept");
+		printf("Accepted Connection\n");
+	
+		bzero(buffer, userInput -> packet_size);
+
+		while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
+			printf("this is a buffer %s\n\n",buffer);
+			n = write(newsockfd, buffer, userInput -> packet_size);
+			if (n < 0) error("ERROR writing to the socket.");
+			usleep(userInput -> packet_delay);
+		} 
+		int terminator_size = 3;
+		char *terminator="End";
+		n = write(newsockfd, terminator, terminator_size);
+		if (n < 0) error("ERROR writing terminator to the socket.");
+
+    	printf("sent message\n"); //why does this not print out?
+    }
+    close(fp);
+}
+
+void Mode_1(struct Inputs *userInput){
+
+	// assign a connection-oriented socket 
+	int sockfd, clilen, n, recsize;
+	struct sockaddr_in serv_addr, cli_addr; 
+	char buffer[userInput -> packet_size];
+
+	// for terminating clause to client
+
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
 	if (0>sockfd){
 		error("ERROR Opening socket");
 	}
@@ -81,43 +102,107 @@ void Mode_0(struct Inputs *userInput){
 	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
 	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
 	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	
 	if (0>n){
 		error("ERROR: Error on binding");
 	}
-	n = listen(sockfd, QUEUE);
 	clilen = sizeof(cli_addr); 
-	
+
+	// open file
 	FILE *fp; 
-	fp = fopen(userInput -> filename, "r");  // This assumes that the file is in the same directory in which we're runing this program 
+	fp = fopen(userInput -> filename, "r");  //This assumes that the file is in the same directory in which we're runing this program 
 	printf("file was opened \n");
 	if (NULL==fp){
 		error("ERROR: File did not open ");
 	}
 
-	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
-	if (newsockfd < 0)
-		error("ERROR on accept");
-	printf("Accepted Connection\n");
-	// first get the file via fopen or something
-	// then open the file to divide into 1000 byte chunks
-	// send each chunk between delay 
+	while(1) {
+		rewind(fp); // puts file pointer back to beginning		
+		
+		recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
+		if (recsize < 0) {
+      		error("ERROR: recvfrom failed");
+		}
 
-	while(fgets(buffer,userInput -> packet_size,fp) != NULL) {
-		//printf("this is a buffer %s\n\n",buffer);
-		n = write(newsockfd, buffer, userInput -> packet_size);
-		if (n < 0) error("ERROR writing to the socket.");
-		usleep(userInput -> packet_delay);
+		bzero(buffer, userInput -> packet_size);
+		printf("About to send...\n");
+
+		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+			printf("this is a buffer %s\n\n",buffer);
+			n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+			if (n < 0) error("ERROR sending datagram");
+			usleep(userInput -> packet_delay);
+		} 
+		int terminator_size = 3;
+		char *terminator="End";
+		n = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
+		if (n < 0) error("ERROR sending terminator to the socket.");
+    	printf("sent message\n"); //why does this not print out?
+    }
+    close(fp);
+}
+
+
+void Mode_2(struct Inputs *userInput){
+
+	// assign a connection-oriented socket 
+	int sockfd, clilen, n, recsize;
+	struct sockaddr_in serv_addr, cli_addr; 
+	char buffer[userInput -> packet_size];
+
+	// for terminating clause to client
+
+	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
+	if (0>sockfd){
+		error("ERROR Opening socket");
 	}
-// 	n = write(newsockfd, "I got your message", 18);
-// 	if (n<0) error("ERROR writing to the socket");
-// 	return 0;
+	bzero ((char*) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;   
+	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
+	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
+	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (0>n){
+		error("ERROR: Error on binding");
+	}
+	clilen = sizeof(cli_addr); 
+
+	// open file
+	FILE *fp; 
+	fp = fopen(userInput -> filename, "r");  //This assumes that the file is in the same directory in which we're runing this program 
+	printf("file was opened \n");
+	if (NULL==fp){
+		error("ERROR: File did not open ");
+	}
+
+	while(1) {
+		rewind(fp); // puts file pointer back to beginning		
+		
+		recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
+		if (recsize < 0) {
+      		error("ERROR: recvfrom failed");
+		}
+
+		bzero(buffer, userInput -> packet_size);
+		printf("About to send...\n");
+
+		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+			printf("this is a buffer %s\n\n",buffer);
+			n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+			if (n < 0) error("ERROR sending datagram");
+			usleep(userInput -> packet_delay);
+		} 
+		int terminator_size = 3;
+		char *terminator="End";
+		n = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
+		if (n < 0) error("ERROR sending terminator to the socket.");
+    	printf("sent message\n"); //why does this not print out?
+    }
+    close(fp);
 }
 
 int main(int argc, char** argv) {
 	// recall command line arguments by doing argv[0]....argv[4]
 	if (argc != 6) {
-		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
+		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
 	}
 
 	int mode, portno, packet_size;
@@ -132,169 +217,15 @@ int main(int argc, char** argv) {
 	userInput.packet_size = atoi(argv[4]);
 	userInput.packet_delay = atof(argv[5]);
 
-	if (0==userInput.mode){
+	switch(userInput.mode){
+
+	case 0: 
 		Mode_0(&userInput);
+	case 1: 
+		Mode_1(&userInput);
+	case 2: 
+		Mode_2(&userInput);
+	default:
+		error("ERROR: Invalid Mode");
 	}
-
 }
-
-
-// void return_args(char **arguments){
-// 	int i;
-// 	arguments[1]
-
-
-=======
-/* EE122 Server Program */
-# include <stdio.h>
-# include <sys/types.h>
-# include <sys/socket.h>
-# include <netinet/in.h>
-# include <stdlib.h> 
-# include <string.h>
-# include <strings.h>
-# include <netdb.h>  // added in just in case
-
-# define QUEUE 10 
-
-void error(char *msg){
-	perror(msg);
-	exit(1);
-}
-
-
-/* The server program is to transfer a specified file to any connecting clients.   
-It only needs to connect to one client at a time, but it should be able to 
-serve multiple clients in sequence without needing to be restarted. */
-/*
-	Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>
-	
-	<mode> Either 0, 1, or 2.  This value indicates what type of connection to establish with the server.
-		   0 :  Connection-oriented sockets 
-		   1 :  Connectionless sockets 
-		   2 :  Connectionless sockets without checksum enabled
-
-	<port> The port number to use for the server
-
-	<filename> A path to a local file to host.  
-			When a client connects to the server, it will be served this file 
-			using the protocol specified by <mode>.
-
-	<packet_size> The size of each packet to send, in bytes.  
-			You will need to break the input file into packets of this size, 
-			and send the packets separately through the network.
-
-	<packet_delay> The server should sleep for this many seconds between sending packets.  
-			Note that the value can be expressed as a floating point value.  
-			For sleeping in fractions of a second, look at the man page for usleep().
-
-	Example: The following call will specify the server to use datagram sockets (UDP) 
-			 on port 33122, hosting a file called bar.txt in a folder named foo.  
-			 The program will send the file in packets of size 1000 bytes, with zero delay between packets.
-		./proj1_server 1 33122 foo/bar.txt 1000 0
-*/
-
-// structure for holding the user inputs 
-struct Inputs
-{
-	int mode;
-	int portno;
-	char *filename;
-	int packet_size;
-	int packet_delay;
-};
-
-void Mode_0(struct Inputs *userInput){
-	//print for error checking 
-	// printf("%d %d %s %d %f \n", 
-	// userInput -> mode,
-	// userInput -> portno,
-	// userInput -> filename,
-	// userInput -> packet_size, 
-	// userInput -> packet_delay);
-
-	// assign a connection-oriented socket 
-	int sockfd, newsockfd, clilen, n;
-	struct sockaddr_in serv_addr, cli_addr; 
-	char *buffer;
-
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
-	if (0>sockfd){
-		error("ERROR Opening socket");
-	}
-	bzero ((char*) &serv_addr, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;   
-	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
-	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
-	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	
-	if (0>n){
-		error("ERROR: Error on binding");
-	}
-	n = listen(sockfd, QUEUE);
-	clilen = sizeof(cli_addr); 
-	
-	FILE *fp; 
-	fp = fopen(userInput -> filename, "r");  // This assumes that the file is in the same directory in which we're runing this program 
-	printf("file was opened \n");
-	if (NULL==fp){
-		error("ERROR: File did not open ");
-	}
-	fgets(buffer,userInput -> packet_size,fp);
-
-	printf("this is a buffer %s\n\n",buffer);
-	/// send buffer
-	fgets(buffer,userInput -> packet_size,fp);
-
-	printf("this is a buffer %s\n\n",buffer);
-
-	printf("this is a buffer %s\n",buffer);
-	
-
-
-	newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
-	if (newsockfd < 0)
-		error("ERROR on accept");
-
-	// first get the file via fopen or something
-	// then open the file to divide into 1000 byte chunks
-	// send each chunk between delay 
-
-
-// 	n = write(newsockfd, "I got your message", 18);
-// 	if (n<0) error("ERROR writing to the socket");
-// 	return 0;
-}
-
-int main(int argc, char** argv) {
-	// recall command line arguments by doing argv[0]....argv[4]
-	if (argc != 6) {
-		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
-	}
-
-	int mode, portno, packet_size;
-	char *filename;
-	float packet_delay;
-	
-	struct Inputs userInput;
-
-	userInput.mode = atoi(argv[1]);
-	userInput.portno = atoi(argv[2]);
-	userInput.filename = argv[3];
-	userInput.packet_size = atoi(argv[4]);
-	userInput.packet_delay = atof(argv[5]);
-
-	if (0==userInput.mode){
-		Mode_0(&userInput);
-	}
-
-}
-
-
-// void return_args(char **arguments){
-// 	int i;
-// 	arguments[1]
-
-
->>>>>>> 6e23d41d3c29fe46e6c9ecbb26c06ba35396bfc9
-// }
