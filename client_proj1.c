@@ -226,7 +226,7 @@ void Mode_2(struct Inputs *userInput)
 
   clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
 
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
+  sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
     error("ERROR Opening socket");
   }
