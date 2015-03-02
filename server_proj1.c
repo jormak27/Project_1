@@ -3,11 +3,14 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 # include <netinet/in.h>
+# include <netinet/udp.h>
+# include <netinet/ip.h>
 # include <stdlib.h> 
 # include <string.h>
 # include <strings.h>
 # include <netdb.h> 
 # include <time.h>
+# include <netinet/in_systm.h>
 
 # define QUEUE 10 
 
@@ -147,37 +150,12 @@ unsigned short csum(unsigned short *buf, int nwords)
 }
 
 
-// The IP header's structure
-struct ipheader {
-	unsigned char      iph_ihl:5, iph_ver:4;
-	unsigned char      iph_tos;
-	unsigned short int iph_len;
-	unsigned short int iph_ident;
-	unsigned char      iph_flag;
-	unsigned short int iph_offset;
-	unsigned char      iph_ttl;
-	unsigned char      iph_protocol;
-	unsigned short int iph_chksum;
-	unsigned int       iph_sourceip;
-	unsigned int       iph_destip;
-};
- 
-// UDP header's structure
-struct udpheader {
-	unsigned short int udph_srcport;
- 	unsigned short int udph_destport;
- 	unsigned short int udph_len;
- 	unsigned short int udph_chksum;
-};
 
 void Mode_2(struct Inputs *userInput){
 
 	int sockfd, clilen, n, recsize;
 	struct sockaddr_in serv_addr, cli_addr; 
 	char buffer[userInput -> packet_size];
-
-	struct ipheader *ip = (struct ipheader *) buffer;
-	struct udpheader *udp = (struct udpheader *) (buffer + sizeof(struct ipheader));
 	
 	memset(buffer, 0, userInput->packet_size);
 	
@@ -185,6 +163,7 @@ void Mode_2(struct Inputs *userInput){
 	if (0>sockfd){
 		error("ERROR Opening socket");
 	}
+
 
 	bzero ((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;   
@@ -196,28 +175,14 @@ void Mode_2(struct Inputs *userInput){
 	}
 	clilen = sizeof(cli_addr); 
 
-	// filling in IP fields server knows
-	ip->iph_ihl = 5;
-	ip->iph_ver = 4;
-	ip->iph_tos = 16; // Low delay
-	ip->iph_len = sizeof(struct ipheader) + sizeof(struct udpheader);
-	ip->iph_ident = htons(54321); // no idea
-	ip->iph_ttl = 64; // hops
-	ip->iph_protocol = 17; // UDP
-	// Source IP address, can use spoofed address here!!!
-	ip->iph_sourceip = serv_addr.sin_addr.s_addr; //inet_addr(argv[1]);
+	//struct iphdr *iph = (struct iphdr *)buffer; 
+	struct udphdr *udph = (struct udphdr *) (buffer); //+ sizeof(struct iphdr));
 
-	// still need ip checksum and destination ip
-	// The destination IP address
-	//ip->iph_destip = inet_addr(argv[3]);
-
-	// filling in UDP fields known to server
-	udp->udph_srcport = serv_addr.sin_port;
-	// Destination port number
-	// udp->udph_destport = htons(atoi(argv[4]));
-	udp->udph_len = htons(sizeof(struct udpheader));
-	udp->udph_chksum = 0;
-
+	//UDP header
+    udph -> uh_sport = serv_addr.sin_port;
+    // destination port set in while loop 
+    udph-> uh_ulen = htons(8 + strlen(buffer)); //tcp header sizeof
+    udph-> uh_sum = 0; //leave checksum 0 now, filled later by pseudo header
 	// still need to fill in destination port for udp header
 
 	// open file
@@ -237,17 +202,9 @@ void Mode_2(struct Inputs *userInput){
 		if (recsize < 0) {
       		error("ERROR: recvfrom failed");
 		}
+		// set destination port as given by client 
+		udph -> uh_dport = cli_addr.sin_port;
 
-		// filling in rest of headers and ip checksum
-		ip->iph_destip = cli_addr.sin_addr.s_addr;
-	    udp->udph_destport = cli_addr.sin_port;
-		ip->iph_chksum = csum((unsigned short *)buffer, sizeof(struct ipheader) + sizeof(struct udpheader));
-		
-		if(setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0)
-		{
-			error("setsockopt() error");
-		}
-		else
 		printf("setsockopt() is OK.\n");
 
 		bzero(buffer, userInput -> packet_size); // will this clear our header??
