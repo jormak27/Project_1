@@ -210,6 +210,41 @@ void Mode_1(struct Inputs *userInput)
   printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
 }
 
+unsigned short csum(unsigned short *buf, int nwords)
+{   
+    unsigned long sum;
+    for(sum=0; nwords>0; nwords--)
+            sum += *buf++;
+    sum = (sum >> 16) + (sum &0xffff);
+    sum += (sum >> 16);
+    return (unsigned short)(~sum);
+}
+
+
+// The IP header's structure
+struct ipheader {
+  unsigned char      iph_ihl:5, iph_ver:4;
+  unsigned char      iph_tos;
+  unsigned short int iph_len;
+  unsigned short int iph_ident;
+  unsigned char      iph_flag;
+  unsigned short int iph_offset;
+  unsigned char      iph_ttl;
+  unsigned char      iph_protocol;
+  unsigned short int iph_chksum;
+  unsigned int       iph_sourceip;
+  unsigned int       iph_destip;
+};
+ 
+// UDP header's structure
+struct udpheader {
+  unsigned short int udph_srcport;
+  unsigned short int udph_destport;
+  unsigned short int udph_len;
+  unsigned short int udph_chksum;
+};
+
+
 void Mode_2(struct Inputs *userInput)
 {
 
@@ -218,15 +253,13 @@ void Mode_2(struct Inputs *userInput)
   int server_len = sizeof(serv_addr);
   struct hostent *server; // in header file 
   int size = 1000; 
-  char buffer[size];
-
-  /* declarations for clock_gettime */
-  uint64_t diff;
-  struct timespec start, end;
-
-  clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
-
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
+  char buffer[size], *data;
+  memset(buffer, 0, size);
+  struct ipheader *ip = (struct ipheader *) buffer;
+  struct udpheader *udp = (struct udpheader *) (buffer + sizeof(struct ipheader));
+  data = buffer + sizeof(struct ipheader) + sizeof(struct udpheader);
+  strcpy(data, "YOYOYYOOYOYOYOOOOYOY");
+  sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);;  //sockfd is socket file descriptor.  This is just returns an integer.  
   if (0>sockfd){
     error("ERROR Opening socket");
   }
@@ -241,58 +274,60 @@ void Mode_2(struct Inputs *userInput)
 
   // file to write to
   FILE *fp; 
-  fp = fopen(userInput -> recv_file, "w");  // This assumes that the file is in the same directory in which we're runing this program 
+  fp = fopen(userInput -> recv_file, "w");  
   printf("file to write to was opened \n");
   if (NULL==fp){
     error("ERROR: File did not open ");
   }
 
-  bzero(buffer, size); // why is I take this out, stack dump
+  // filling in IP fields 
+  ip->iph_ihl = 5;
+  ip->iph_ver = 4;
+  ip->iph_tos = 0; 
+  ip->iph_len = sizeof(struct ipheader) + sizeof(struct udpheader) + strlen(data);
+  ip->iph_ident = htons(54321); // no idea
+  ip->iph_offset = 0;
+  ip->iph_ttl = 64; // hops
+  ip->iph_protocol = 17; // UDP
+  ip->iph_chksum = 0;      //Set to 0 before calculating checksum
+  ip->iph_sourceip = 0; 
+  ip->iph_destip = serv_addr.sin_addr.s_addr;
 
-  FILE *fp_stat; 
-  fp_stat = fopen(userInput -> stats_filename, "w");  // This assumes that the file is in the same directory in which we're runing this program 
-  printf("file to write stats to was opened \n");
-  if (NULL==fp_stat) error("ERROR: File did not open ");
+  // filling in UDP fields 
+  udp->udph_srcport = 0;
+  udp->udph_destport = serv_addr.sin_port;
+  udp->udph_len = htons(sizeof(struct udpheader));
+  udp->udph_chksum = 0;
 
-  n = sendto(sockfd,"connecting",sizeof("connecting"),0,(struct sockaddr *)&serv_addr, server_len);
+  ip->iph_chksum = csum((unsigned short *)data, ip->iph_len);
+
+  // declaring that we are going to use our own headers!
+/*  int one = 1;
+  const int *val = &one;
+  if(setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0) {
+    error("setsockopt() error");
+  } */
+  //printf("setsockopt() is OK.\n");
+  //printf("data is before sending: %s\n", data);
+  //printf("buffer is before sending: %s\n", buffer);
+  n = sendto(sockfd,data,ip->iph_len,0,(struct sockaddr *)&serv_addr, server_len);
+  // timer thing until it runs out, so keep sending because seems to keep getting lost,
+  // but did see it go through once!!!
   printf("send initial packet\n");
   // receiving
-  while(1) {
-    struct timespec start_in_loop, end_in_loop;
-    bzero(buffer, size);
-    clock_gettime(CLOCK_MONOTONIC, &start_in_loop);  
-    printf("in while loop\n");
-    recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr, &server_len); // void * ??? 
-    if (recsize < 0) {
-          error("ERROR: recvfrom failed in client");
-    }
-
-    printf("buffer: %s\n", buffer); 
-    clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
-
-    // for stats text file
-    diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
-    fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
-    printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
-    if (strcmp("End", buffer) == 0) break;
-    fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
-    //printf("condition: %d\n", condition);
+  bzero(buffer, size); 
+  recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr, &server_len); // void * ??? 
+  if (recsize < 0) {
+    error("ERROR: recvfrom failed in client");
   }
-
+  printf("Received buffer\n");
+  printf("buffer: %s\n", buffer); 
+  fputs(buffer, fp);
   // tells how big our file is
-  int len = ftell(fp); // tells where our file pointer is in file
+  int len = ftell(fp); 
   printf("Total size of file.txt = %d bytes\n", len);
-  
-  fclose(fp_stat);
   fclose(fp);
-
   printf("wrote to the file and closed it.\n");
-
-  /* finishing clock_gettime */
-  clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
-
-  diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-  printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
 }
 
 int main(int argc, char *argv[]) // Three arguments provided:  client host port (host is your localhost if both processes are on your own machine)

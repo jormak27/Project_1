@@ -65,7 +65,7 @@ void Mode_0(struct Inputs *userInput){
 	
 		bzero(buffer, userInput -> packet_size);
 
-		while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
+		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			printf("this is a buffer %s\n\n",buffer);
 			n = write(newsockfd, buffer, userInput -> packet_size);
 			if (n < 0) error("ERROR writing to the socket.");
@@ -136,14 +136,31 @@ void Mode_1(struct Inputs *userInput){
     close(fp);
 }
 
-unsigned short csum(unsigned short *buf, int nwords)
-{   
-    unsigned long sum;
-    for(sum=0; nwords>0; nwords--)
-            sum += *buf++;
-    sum = (sum >> 16) + (sum &0xffff);
-    sum += (sum >> 16);
-    return (unsigned short)(~sum);
+/*
+    Generic checksum calculation function
+*/
+unsigned short csum(unsigned short *ptr,int nbytes) 
+{
+    register long sum;
+    unsigned short oddbyte;
+    register short answer;
+ 
+    sum=0;
+    while(nbytes>1) {
+        sum+=*ptr++;
+        nbytes-=2;
+    }
+    if(nbytes==1) {
+        oddbyte=0;
+        *((u_char*)&oddbyte)=*(u_char*)ptr;
+        sum+=oddbyte;
+    }
+ 
+    sum = (sum>>16)+(sum & 0xffff);
+    sum = sum + (sum>>16);
+    answer=(short)~sum;
+     
+    return(answer);
 }
 
 
@@ -161,31 +178,37 @@ struct ipheader {
 	unsigned int       iph_sourceip;
 	unsigned int       iph_destip;
 };
- 
+
 // UDP header's structure
 struct udpheader {
 	unsigned short int udph_srcport;
  	unsigned short int udph_destport;
- 	unsigned short int udph_len;
- 	unsigned short int udph_chksum;
+ 	unsigned short int udph_len
+; 	unsigned short int udph_chksum;
 };
 
 void Mode_2(struct Inputs *userInput){
 
 	int sockfd, clilen, n, recsize;
 	struct sockaddr_in serv_addr, cli_addr; 
-	char buffer[userInput -> packet_size];
+	char buffer[userInput -> packet_size], *data; //let's see what happens
+	// in other example buffer = datagram
 
-	struct ipheader *ip = (struct ipheader *) buffer;
-	struct udpheader *udp = (struct udpheader *) (buffer + sizeof(struct ipheader));
-	
-	memset(buffer, 0, userInput->packet_size);
-	
-	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
+	// making socket!
+	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);    
 	if (0>sockfd){
 		error("ERROR Opening socket");
 	}
 
+	// so packet = ethernet header + ip header + udp header + data
+	// ethernet header provided by OS kernal and don't construct it
+
+	// that means we have to have data = buffer + ipheader + tcpheader
+
+	// zero out packet buffer
+	memset(buffer, 0, userInput->packet_size);
+
+	// filling in server stuffs
 	bzero ((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;   
 	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
@@ -194,42 +217,84 @@ void Mode_2(struct Inputs *userInput){
 	if (0>n){
 		error("ERROR: Error on binding");
 	}
+
 	clilen = sizeof(cli_addr); 
 
-	// filling in IP fields server knows
-	ip->iph_ihl = 5;
-	ip->iph_ver = 4;
-	ip->iph_tos = 16; // Low delay
-	ip->iph_len = sizeof(struct ipheader) + sizeof(struct udpheader);
-	ip->iph_ident = htons(54321); // no idea
-	ip->iph_ttl = 64; // hops
-	ip->iph_protocol = 17; // UDP
-	// Source IP address, can use spoofed address here!!!
-	ip->iph_sourceip = serv_addr.sin_addr.s_addr; //inet_addr(argv[1]);
-
-	// still need ip checksum and destination ip
-	// The destination IP address
-	//ip->iph_destip = inet_addr(argv[3]);
-
-	// filling in UDP fields known to server
-	udp->udph_srcport = serv_addr.sin_port;
-	// Destination port number
-	// udp->udph_destport = htons(atoi(argv[4]));
-	udp->udph_len = htons(sizeof(struct udpheader));
-	udp->udph_chksum = 0;
-
-	// still need to fill in destination port for udp header
-
+while(1) {
 	// open file
 	FILE *fp; 
-	fp = fopen(userInput -> filename, "r");  //This assumes that the file is in the same directory in which we're runing this program 
+	fp = fopen(userInput -> filename, "r"); 
 	printf("file was opened \n");
 	if (NULL==fp){
 		error("ERROR: File did not open ");
 	}
+	bzero(buffer, userInput->packet_size);
+	recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
+	if (recsize < 0) {
+    	error("ERROR: recvfrom failed");
+	}
+	printf("recvfrom successful from client\n");
+	printf("%s\n", buffer);
+	
+	bzero(buffer, userInput->packet_size);
+	// make headers
+	struct ipheader *ip = (struct ipheader *) buffer;
+	struct udpheader *udp = (struct udpheader *) (buffer + sizeof(struct ipheader));
+
+
+	//Data part
+    data = buffer + sizeof(struct ipheader) + sizeof(struct udpheader);
+    strcpy(data, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+
+	// filling in IP fields 
+	ip->iph_ihl = 5;
+	ip->iph_ver = 4;
+	ip->iph_tos = 0;
+	ip->iph_len = sizeof(struct ipheader) + sizeof(struct udpheader) + strlen(data);
+	ip->iph_ident = htons(54321); // no idea
+    ip->iph_offset = 0;
+	ip->iph_ttl = 64; // hops
+	ip->iph_protocol = 17; // UDP
+    ip->iph_chksum = 0;      //Set to 0 before calculating checksum
+	ip->iph_sourceip = serv_addr.sin_addr.s_addr; 
+	ip->iph_destip = cli_addr.sin_addr.s_addr;
+
+	// filling in UDP fields 
+	udp->udph_srcport = serv_addr.sin_port;
+	udp->udph_destport = cli_addr.sin_port;
+	udp->udph_len = htons( sizeof(struct udpheader));
+	udp->udph_chksum = 0;
+
+	ip->iph_chksum = csum((unsigned short *)data, ip->iph_len);
+
+	// declaring that we are going to use our own headers!
 	int one = 1;
 	const int *val = &one;
+	if(setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0) {
+		error("setsockopt() error");
+	} 
+	printf("setsockopt() is OK.\n");
+		
+	//bzero(buffer, userInput -> packet_size); // will this clear our header?? - yes I think so!!!
+	printf("About to send...\n");
+	//printf("%d\n", ip->iph_chksum); // checksum is coming out to be zero!!! - possibly why it is wrong??
+	//printf("%llu\n", ip->iph_ver);	// something is happening around here!!! iph_ver comes out as zero!! after i take out bzero!
+	//printf("%d\n", udp->udph_len);
+	// yeah fgets is rewriting our fields and what not!!!1
+	//if (fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+		//printf("%d\n", ip->iph_chksum); // checksum is coming out to be zero!!! - possibly why it is wrong??
+		//printf("%llu\n", ip->iph_ver);
 
+	// using the 'ABCD....'
+	// also wondering why we send buffer, but not data, but length is everything together!
+		printf("this is buffer: %s\n\n",data);
+		n = sendto(sockfd, data, ip->iph_len,0,(struct sockaddr *)&cli_addr, clilen);
+		if (n < 0) error("ERROR sending datagram");
+		usleep(userInput -> packet_delay);
+	//} 
+
+    printf("sent message\n");
+/*    	
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning		
 		
@@ -237,6 +302,7 @@ void Mode_2(struct Inputs *userInput){
 		if (recsize < 0) {
       		error("ERROR: recvfrom failed");
 		}
+		printf("recvfrom successful from client\n");
 
 		// filling in rest of headers and ip checksum
 		ip->iph_destip = cli_addr.sin_addr.s_addr;
@@ -250,9 +316,10 @@ void Mode_2(struct Inputs *userInput){
 		else
 		printf("setsockopt() is OK.\n");
 
-		bzero(buffer, userInput -> packet_size); // will this clear our header??
+		//bzero(buffer, userInput -> packet_size); // will this clear our header?? - yes I think so!!!
 		printf("About to send...\n");
-
+		printf("%d\n", ip->iph_chksum); // checksum is coming out to be zero!!! - possibly why it is wrong??
+		printf("%llu\n", ip->iph_ver);	// something is happening around here!!! iph_ver comes out as zero!! after i take out bzero!
 		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			printf("this is a buffer %s\n\n",buffer);
 			n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
@@ -263,9 +330,12 @@ void Mode_2(struct Inputs *userInput){
 		char *terminator="End";
 		n = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
 		if (n < 0) error("ERROR sending terminator to the socket.");
-    	printf("sent message\n"); //why does this not print out?
+    	printf("sent message\n");
     }
+
+*/
     close(fp);
+    }
 
 }
 
@@ -287,12 +357,16 @@ int main(int argc, char** argv) {
 
 	case 0: 
 		Mode_0(&userInput);
+		break;
 	case 1: 
 		Mode_1(&userInput);
+		break;
 	case 2: 
 		Mode_2(&userInput);
+		break;
 	default:
 		error("ERROR: Invalid Mode");
+		break;
 	}
 
 	return 0;
