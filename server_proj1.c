@@ -68,7 +68,7 @@ void Mode_0(struct Inputs *userInput){
 	
 		bzero(buffer, userInput -> packet_size);
 
-		while(fgets(buffer, (userInput -> packet_size)+1,fp) != NULL) {
+		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			printf("this is a buffer %s\n\n",buffer);
 			n = write(newsockfd, buffer, userInput -> packet_size);
 			if (n < 0) error("ERROR writing to the socket.");
@@ -120,6 +120,8 @@ void Mode_1(struct Inputs *userInput){
 		if (recsize < 0) {
       		error("ERROR: recvfrom failed");
 		}
+    	printf("client port number: %d\n", ntohs(cli_addr.sin_port) );
+		printf("client buffer: %s\n", buffer);
 
 		bzero(buffer, userInput -> packet_size);
 		printf("About to send...\n");
@@ -139,36 +141,31 @@ void Mode_1(struct Inputs *userInput){
     close(fp);
 }
 
-unsigned short csum(unsigned short *buf, int nwords)
-{   
-    unsigned long sum;
-    for(sum=0; nwords>0; nwords--)
-            sum += *buf++;
-    sum = (sum >> 16) + (sum &0xffff);
-    sum += (sum >> 16);
-    return (unsigned short)(~sum);
-}
-
-
-
 void Mode_2(struct Inputs *userInput){
+
+	// will make header and buffer and then append to data
 
 	int sockfd, clilen, n, recsize;
 	struct sockaddr_in serv_addr, cli_addr; 
-	char buffer[userInput -> packet_size];
+	// malloc or hard code
+	//char buffer[userInput -> packet_size], header[8];
+	char buffer[500], header[8];
+	char data[528], port[2];
+
+	memset(buffer, 0, 500);
+	memset(header, 0, 8);
+	memset(data, 0, 528);
+	memset(port, 0, 2);
 	
-	memset(buffer, 0, userInput->packet_size);
-	
-	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
+	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  
 	if (0>sockfd){
 		error("ERROR Opening socket");
 	}
 
-
 	bzero ((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;   
-	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
-	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
+	serv_addr.sin_addr.s_addr = INADDR_ANY;  
+	serv_addr.sin_port = htons(userInput -> portno);
 	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
 	if (0>n){
 		error("ERROR: Error on binding");
@@ -176,13 +173,13 @@ void Mode_2(struct Inputs *userInput){
 	clilen = sizeof(cli_addr); 
 
 	//struct iphdr *iph = (struct iphdr *)buffer; 
-	struct udphdr *udph = (struct udphdr *) (buffer); //+ sizeof(struct iphdr));
+	struct udphdr *udph = (struct udphdr *) (header); //+ sizeof(struct iphdr));
 
 	//UDP header
     udph -> uh_sport = serv_addr.sin_port;
     // destination port set in while loop 
-    udph-> uh_ulen = htons(8 + strlen(buffer)); //tcp header sizeof
-    udph-> uh_sum = 0; //leave checksum 0 now, filled later by pseudo header
+    udph-> uh_ulen = htons(8 + sizeof(buffer)); //tcp header sizeof
+    udph-> uh_sum = 0; 
 	// still need to fill in destination port for udp header
 
 	// open file
@@ -192,36 +189,87 @@ void Mode_2(struct Inputs *userInput){
 	if (NULL==fp){
 		error("ERROR: File did not open ");
 	}
-	int one = 1;
-	const int *val = &one;
-
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning		
-		
-		recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
+		// for raw sockets, RECVFROM adds a 20 byte header
+
+		// do we need ip and udp header
+// Use recvmsg() with the msg[] buffers initialized so that the first 
+// one receives the IP header, then the second one will only contain 
+// data.
+// raw_sendmsg() ?
+
+		/* http://www.tagwith.com/question_440319_recvfrom-with-raw-sockets-get-just-the-data
+But of course, when calling recvfrom() on a raw socket, 
+you are given the raw IP datagram, while the sockaddr struct 
+is not filled in.
+		*/
+		/*
+Communication along a UDP path, on the other hand, is one-way. 
+The datagram sender can send messages (through sendto()), and the 
+datagram receiver can receive them (through recvfrom()), but the 
+receiver can't send message back to the sender. However, you can 
+simulate a two-way UDP conversation by binding both sockets. 
+This doesn't change the definition of the UDP path, or the capabilities 
+of the two types of datagram sockets, it simply means that a bound 
+datagram socket can act as a receiver 
+(it can call recvfrom()) or as a sender (it can call sendto()).
+
+		*/
+		// for receiving the IP header is always included in the packet!!
+		// which is the 20 extra bytes !!!
+
+		// if doesn't work, try recvmsg with msg[] already made!
+		// http://man7.org/linux/man-pages/man2/recvmsg.2.html
+		// http://pubs.opengroup.org/onlinepubs/009695399/functions/recvmsg.html
+		// microsoft FTW!!
+		// http://developer.nokia.com/community/wiki/Open_C_Sockets:_recv,_recvfrom,_recvmsg_methods
+
+		recsize = recvfrom(sockfd, (void *)data, 528, 0, (struct sockaddr *)&cli_addr, &clilen);
 		if (recsize < 0) {
       		error("ERROR: recvfrom failed");
 		}
+		printf("received size: %d\n", recsize);
+		printf("client buffer?: %s\n", data+28); // shows up as connecting!!!!!
+		// information is in form ip header(20) + udp header(8) + buffer
+		// so information is data + 28!!!
+
 		// set destination port as given by client 
-		udph -> uh_dport = cli_addr.sin_port;
+		memcpy(port, data+20, 2);
+		uint16_t client_portno = ntohs(*port); // got the port number of client
+		printf("client source port number: %d\n", client_portno);
+		memcpy(port, data+22, 2);
+		uint16_t dest_portno = ntohs(*port);
+		printf("client destination port number: %d\n", dest_portno);		
+		udph -> uh_dport = client_portno;
+		printf("server source port %d\n", udph->uh_sport);
+		printf("server dest port %d\n", udph->uh_dport);	
 
-		printf("setsockopt() is OK.\n");
+		if(dest_portno != udph->uh_sport) {	
 
-		bzero(buffer, userInput -> packet_size); // will this clear our header??
+		bzero(data, 528); // to get rid of connecting
+		memcpy(data, header, 8);
+		bzero(buffer, 500); 
 		printf("About to send...\n");
 
-		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
-			printf("this is a buffer %s\n\n",buffer);
-			n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+		while(fgets(buffer, 500, fp) != NULL) {
+		// weird because picks up its own packets too!
+		//while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+			//printf("this is a buffer %s\n\n",buffer);
+			memcpy(data+8, buffer, 500);
+			//n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+			n = sendto(sockfd, data, 508,0,(struct sockaddr *)&cli_addr, clilen);
 			if (n < 0) error("ERROR sending datagram");
+			//printf("n: %d\n", n);
 			usleep(userInput -> packet_delay);
 		} 
 		int terminator_size = 3;
-		char *terminator="End";
+		char terminator[3]="End";
 		n = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
 		if (n < 0) error("ERROR sending terminator to the socket.");
-    	printf("sent message\n"); //why does this not print out?
+		}
     }
+
     close(fp);
 
 }

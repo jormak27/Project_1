@@ -3,11 +3,14 @@
 # include <sys/types.h>
 # include <sys/socket.h>
 # include <netinet/in.h>
+# include <netinet/udp.h>
+# include <netinet/ip.h>
 # include <stdlib.h> 
 # include <string.h>
 # include <strings.h>
 # include <netdb.h> 
 # include <time.h>
+# include <netinet/in_systm.h>
 
 /* for clock_gettime */
 # include <stdio.h>  /* for printf */
@@ -39,16 +42,10 @@ void Mode_0(struct Inputs *userInput)
   struct sockaddr_in serv_addr; 
   struct hostent *server; // in header file 
   int size = 1000;  // what if pass in this - so assume client knows
-  // note that when I tried to send at 10,000 bytes and 5,000 byes
-  // connection reset by peer error.
-  // also if I put size at 3000, get open_stackdumpfile
   char buffer[size];
 
-  /* wipe our stat file */
-  // possible w/o memory dying out?
-
   /* declarations for clock_gettime */
-  uint64_t diff;
+  long long unsigned int diff;
   struct timespec start, end;
 
   clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
@@ -99,11 +96,11 @@ void Mode_0(struct Inputs *userInput)
 
     // for stats text file
     diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
-    fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n\n", (long long unsigned int) diff);
-    printf("elapsed time of packet = %llu nanoseconds\n\n", (long long unsigned int) diff);
+    diff = diff * .000000001;
+    fprintf(fp_stat, "elapsed time of packet = %llu seconds\n\n", (long long unsigned int) diff);
+    printf("elapsed time of packet = %llu seconds\n\n", (long long unsigned int) diff);
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
-    //printf("condition: %d\n", condition);
   }
 
   // tells how big our file is
@@ -120,8 +117,10 @@ void Mode_0(struct Inputs *userInput)
   /* finishing clock_gettime */
   clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
 
+  
   diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-  printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
+  diff = diff * .000000001;
+  printf("elapsed time of connection = %llu seconds\n", (long long unsigned int) diff);
 
 }
 
@@ -187,8 +186,9 @@ void Mode_1(struct Inputs *userInput)
 
     // for stats text file
     diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
-    fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
-    printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
+    diff = diff * .000000001;
+    fprintf(fp_stat, "elapsed time of packet = %llu seconds\n", (long long unsigned int) diff);
+    printf("elapsed time of packet = %llu seconds\n", (long long unsigned int) diff);
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
     //printf("condition: %d\n", condition);
@@ -207,18 +207,25 @@ void Mode_1(struct Inputs *userInput)
   clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
-  printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
+  diff = diff * .000000001;
+  printf("elapsed time of connection = %llu seconds\n", (long long unsigned int) diff);
 }
 
 void Mode_2(struct Inputs *userInput)
 {
-
+  
+  // possibly header is not coming through correctly??
   int sockfd, portno, n, recsize;
-  struct sockaddr_in serv_addr; 
+  struct sockaddr_in serv_addr, cli_addr; 
   int server_len = sizeof(serv_addr);
-  struct hostent *server; // in header file 
+  struct hostent *server; 
   int size = 1000; 
   char buffer[size];
+  
+  // trying to add make its udp header!!
+  char header[8], data[size + 8];
+  memset(buffer, 0, size);
+  memset(header, 0, 8);
 
   /* declarations for clock_gettime */
   uint64_t diff;
@@ -227,6 +234,7 @@ void Mode_2(struct Inputs *userInput)
   clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
 
   sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
+  //sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if (0>sockfd){
     error("ERROR Opening socket");
   }
@@ -239,6 +247,15 @@ void Mode_2(struct Inputs *userInput)
   bcopy((char *) server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
   serv_addr.sin_port = htons(userInput -> portno);
 
+  bzero ((char*) &cli_addr, sizeof(cli_addr));
+  cli_addr.sin_family = AF_INET;   
+  cli_addr.sin_addr.s_addr = INADDR_ANY;  
+  cli_addr.sin_port = htons(55555);
+  n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+  if (0>n){
+    error("ERROR: Error on binding");
+  }
+
   // file to write to
   FILE *fp; 
   fp = fopen(userInput -> recv_file, "w");  // This assumes that the file is in the same directory in which we're runing this program 
@@ -247,36 +264,47 @@ void Mode_2(struct Inputs *userInput)
     error("ERROR: File did not open ");
   }
 
-  bzero(buffer, size); // why is I take this out, stack dump
-
   FILE *fp_stat; 
   fp_stat = fopen(userInput -> stats_filename, "w");  // This assumes that the file is in the same directory in which we're runing this program 
   printf("file to write stats to was opened \n");
   if (NULL==fp_stat) error("ERROR: File did not open ");
 
-  n = sendto(sockfd,"connecting",sizeof("connecting"),0,(struct sockaddr *)&serv_addr, server_len);
+    //UDP header
+    struct udphdr *udph = (struct udphdr *) (header);
+    udph -> uh_sport = cli_addr.sin_port; // tried to bind
+    udph -> uh_dport = serv_addr.sin_port;
+    udph-> uh_ulen = htons(8 + strlen("connecting")); 
+    udph-> uh_sum = 0; 
+
+    memcpy(data, header, 8);
+    memcpy(data+8, "connecting", sizeof("connecting"));
+  
+    // "connecting" has 10 bytes + 1 for null terminator
+  n = sendto(sockfd, data, sizeof(data)+1,0,(struct sockaddr *)&serv_addr, server_len);
   printf("send initial packet\n");
+  bzero(buffer, size);
+  bzero(data, size);
   // receiving
   while(1) {
     struct timespec start_in_loop, end_in_loop;
-    bzero(buffer, size);
     clock_gettime(CLOCK_MONOTONIC, &start_in_loop);  
-    printf("in while loop\n");
     recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr, &server_len); // void * ??? 
     if (recsize < 0) {
           error("ERROR: recvfrom failed in client");
     }
+    printf("buffer is %s\n", buffer+28);
+    //printf("received size %d\n", recsize);
+      //printf("buffer: %s\n", buffer); 
+      //printf("buffer size: %d\n", strlen(buffer));
+      clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
 
-    printf("buffer: %s\n", buffer); 
-    clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
-
-    // for stats text file
-    diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
-    fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
-    printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
-    if (strcmp("End", buffer) == 0) break;
-    fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
-    //printf("condition: %d\n", condition);
+      // for stats text file
+      diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
+      fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
+      printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
+      if (strcmp("End", buffer+28) == 0) break;
+      fputs(buffer+28, fp);  
+      bzero(buffer, size);     
   }
 
   // tells how big our file is
@@ -293,6 +321,8 @@ void Mode_2(struct Inputs *userInput)
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
   printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
+
+
 }
 
 int main(int argc, char *argv[]) // Three arguments provided:  client host port (host is your localhost if both processes are on your own machine)
