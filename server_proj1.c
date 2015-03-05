@@ -1,4 +1,14 @@
-/* EE122 Server Program */
+/* 
+EE122 Project 1 
+================
+Phase 1: Server Program 
+
+Team Members
+===============
+Jordan Makansi
+Gary Hoang
+
+*/
 # include <stdio.h>
 # include <sys/types.h>
 # include <sys/socket.h>
@@ -14,15 +24,18 @@
 
 # define QUEUE 10 
 
-# define TRUE 1
-# define FALSE 0
+/*
+	Mode 0: Connection-oriented sockets
+	Mode 1: Connectionless sockets
+	Mode 2: Connectionless sockets with (UDP) checksum disabled
+*/
 
 void error(char *msg){
 	perror(msg);
 	exit(1);
 }
 
-// structure for holding the user inputs 
+// Structure For Holding The User Inputs 
 struct Inputs {
 	int mode;
 	int portno;
@@ -33,120 +46,115 @@ struct Inputs {
 
 void Mode_0(struct Inputs *userInput){
 
-	// assign a connection-oriented socket 
-	int sockfd, newsockfd, clilen, n;
+	int sockfd, newsockfd, clilen, check, terminator_size;
 	struct sockaddr_in serv_addr, cli_addr; 
 	char buffer[userInput -> packet_size];
+	FILE *fp;
+	char *terminator="End"; // how to get over this?
 
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
-	if (0>sockfd){
-		error("ERROR Opening socket");
-	}
+	// initialize known variables
+	clilen = sizeof(cli_addr); 
+	terminator_size = strlen(terminator);
 
+	// make socket
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);  
+	if (0>sockfd) error("ERROR Opening socket"); 
+
+	// fill in server struct
 	bzero ((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;   
-	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
+	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). 
 	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
-	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	if (0>n){
-		error("ERROR: Error on binding");
-	}
+	
+	// bind and listen
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (check < 0) error("ERROR: Error on binding"); 
 	listen(sockfd, QUEUE);
-	clilen = sizeof(cli_addr); 
 
-	// open file
-	FILE *fp; 
-	fp = fopen(userInput -> filename, "r");  // This assumes that the file is in the same directory in which we're runing this program 
-	printf("file was opened \n");
-	if (NULL==fp){
-		error("ERROR: File did not open ");
-	}
+	// open file for reading
+	fp = fopen(userInput -> filename, "r");  
+	if (NULL==fp) error("ERROR: File did not open ");
+
+	printf("Server successfully opened and awaiting clients.\n");
 
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning
 		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
-		if (newsockfd < 0)
-			error("ERROR on accept");
-		printf("Accepted Connection\n");
+		if (newsockfd < 0) error("ERROR on accept"); 
 	
 		bzero(buffer, userInput -> packet_size);
 
+		// send our file
 		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
-			printf("this is a buffer %s\n\n",buffer);
-			n = write(newsockfd, buffer, userInput -> packet_size);
-			if (n < 0) error("ERROR writing to the socket.");
+			check = write(newsockfd, buffer, userInput -> packet_size);
+			if (check < 0) {error("ERROR writing to the socket."); }
 			usleep(userInput -> packet_delay);
-		} 
-		int terminator_size = 3;
-		char *terminator="End";
-		n = write(newsockfd, terminator, terminator_size);
-		if (n < 0) error("ERROR writing terminator to the socket.");
+		}
 
-    	printf("sent message\n"); //why does this not print out?
+		// send our terminator
+		check = write(newsockfd, terminator, terminator_size);
+		if (check < 0) error("ERROR writing terminator to the socket.");
+
+    	printf("Received a client and sent file successfully.\n");
     }
     close(fp);
 }
 
 void Mode_1(struct Inputs *userInput){
 
-	// assign a connection-oriented socket 
-	int sockfd, clilen, n, recsize;
+	int sockfd, clilen, check, terminator_size;
 	struct sockaddr_in serv_addr, cli_addr; 
 	char buffer[userInput -> packet_size];
+	FILE *fp; 
+	char *terminator="End"; // how to get over this?
+
+	// initialize known variables
+	clilen = sizeof(cli_addr); 
+	terminator_size = strlen(terminator);
+
+	clilen = sizeof(cli_addr); 
 
 	sockfd = socket(AF_INET, SOCK_DGRAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
-	if (0>sockfd){
-		error("ERROR Opening socket");
-	}
+	if (0>sockfd) error("ERROR Opening socket"); 
+
 	bzero ((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;   
 	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
 	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
-	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	if (0>n){
-		error("ERROR: Error on binding");
-	}
-	clilen = sizeof(cli_addr); 
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (check < 0) error("ERROR: Error on binding"); 
 
 	// open file
-	FILE *fp; 
-	fp = fopen(userInput -> filename, "r");  //This assumes that the file is in the same directory in which we're runing this program 
-	printf("file was opened \n");
-	if (NULL==fp){
-		error("ERROR: File did not open ");
-	}
+	fp = fopen(userInput -> filename, "r"); 
+	if (NULL==fp) error("ERROR: File did not open");
+
+	printf("Server successfully opened and awaiting clients.\n");
 
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning		
 		
-		recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
-		if (recsize < 0) {
-      		error("ERROR: recvfrom failed");
-		}
-    	printf("client port number: %d\n", ntohs(cli_addr.sin_port) );
-		printf("client buffer: %s\n", buffer);
+		check = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
+		if (check < 0) error("ERROR: recvfrom failed");
 
-		bzero(buffer, userInput -> packet_size);
-		printf("About to send...\n");
+		// only if it is our client, then send data
+    	if (strcmp("connecting", buffer) == 0) {
 
-		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
-			printf("this is a buffer %s\n\n",buffer);
-			n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
-			if (n < 0) error("ERROR sending datagram");
-			usleep(userInput -> packet_delay);
-		} 
-		int terminator_size = 3;
-		char *terminator="End";
-		n = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
-		if (n < 0) error("ERROR sending terminator to the socket.");
-    	printf("sent message\n"); //why does this not print out?
+			bzero(buffer, userInput -> packet_size);
+
+			while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+				check = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+				if (check < 0) error("ERROR sending datagram");
+				usleep(userInput -> packet_delay);
+			} 
+			check = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
+			if (check < 0) error("ERROR sending terminator to the socket.");
+    		printf("Received a client and sent file successfully.\n");
+    	}
     }
     close(fp);
 }
 
 void Mode_2(struct Inputs *userInput){
-
-	// will make header and buffer and then append to data
 
 	int sockfd, clilen, n, recsize;
 	struct sockaddr_in serv_addr, cli_addr; 
@@ -176,13 +184,6 @@ void Mode_2(struct Inputs *userInput){
 	}
 	clilen = sizeof(cli_addr); 
 
-	// so it doesn't get sent everywhere
-/*	so_broadcast = TRUE;  // its not working
-	n = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &so_broadcast, sizeof(so_broadcast));
-	if(n<0) {
-		error("ERROR setsockopt did not work");
-	}
-*/
 	//struct iphdr *iph = (struct iphdr *)buffer; 
 	struct udphdr *udph = (struct udphdr *) (header); //+ sizeof(struct iphdr));
 
@@ -200,9 +201,9 @@ void Mode_2(struct Inputs *userInput){
 	}
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning		
-// Use recvmsg() with the msg[] buffers initialized so that the first 
-// one receives the IP header, then the second one will only contain 
-// data.
+		// Use recvmsg() with the msg[] buffers initialized so that the first 
+		// one receives the IP header, then the second one will only contain 
+		// data.	
 		// if doesn't work, try recvmsg with msg[] already made!
 		// http://man7.org/linux/man-pages/man2/recvmsg.2.html
 		// http://pubs.opengroup.org/onlinepubs/009695399/functions/recvmsg.html
@@ -225,11 +226,7 @@ void Mode_2(struct Inputs *userInput){
 		if(strcmp("connecting", data+28) == 0) {
 		// set destination port as given by client 
 		memcpy(port, data+20, 2);
-		uint16_t client_portno = ntohs(*port); // got the port number of client
-		//printf("client source port number: %d\n", client_portno);
-		//memcpy(port, data+22, 2);
-		//uint16_t dest_portno = ntohs(*port);
-		//printf("client destination port number: %d\n", dest_portno);		
+		uint16_t client_portno = ntohs(*port); // get the client port number	
 		udph -> uh_dport = client_portno;
 
 		bzero(data, 528);
@@ -265,7 +262,6 @@ void Mode_2(struct Inputs *userInput){
 }
 
 int main(int argc, char** argv) {
-	// recall command line arguments by doing argv[0]....argv[4]
 	if (argc != 6) {
 		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
 	}
