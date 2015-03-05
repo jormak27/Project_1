@@ -93,7 +93,6 @@ void Mode_0(struct Inputs *userInput){
 		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			check = write(newsockfd, buffer, userInput -> packet_size);
 			if (check < 0) {error("ERROR writing to the socket."); }
-			printf("Packet received");
 			usleep(userInput -> packet_delay);
 		}
 
@@ -161,114 +160,105 @@ void Mode_1(struct Inputs *userInput){
     }
     fclose(fp);
 }
-/*
+
 void Mode_2(struct Inputs *userInput){
 
-	int sockfd, clilen, n, recsize;
+	int sockfd, clilen, check;
 	struct sockaddr_in serv_addr, cli_addr; 
-	// malloc or hard code
-	//char buffer[userInput -> packet_size], header[8];
-	char buffer[500], header[8];
-	char data[528], port[2];
-	int so_broadcast;
+	char *buffer, *data, header[8], port[2];
+  	struct udphdr *udph;
+  	FILE *fp;
+  	uint16_t client_portno;
 
-	memset(buffer, 0, 500);
+  	/* initialize variables */
+	clilen = sizeof(cli_addr); 
+	buffer = (char *) malloc(userInput-> packet_size);
+	if (buffer == NULL) error("ERROR: Failed to allocate memory for buffer");
+	data = (char *) malloc((userInput->packet_size)+20+8);
+	if (data == NULL) error("ERROR: Failed to allocate memory for data");
+	/* clean */
+	memset(buffer, 0, userInput->packet_size);
 	memset(header, 0, 8);
-	memset(data, 0, 528);
+	memset(data, 0, (userInput->packet_size)+20+8);
 	memset(port, 0, 2);
 	
 	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  
-	if (0>sockfd){
-		error("ERROR Opening socket");
-	}
+	if (sockfd < 0) error("ERROR Opening socket");
 
 	bzero ((char*) &serv_addr, sizeof(serv_addr));
 	serv_addr.sin_family = AF_INET;   
 	serv_addr.sin_addr.s_addr = INADDR_ANY;  
 	serv_addr.sin_port = htons(userInput -> portno);
-	n = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
-	if (0>n){
-		error("ERROR: Error on binding");
-	}
-	clilen = sizeof(cli_addr); 
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (check < 0) error("ERROR: Error on binding");
 
-	//struct iphdr *iph = (struct iphdr *)buffer; 
-	struct udphdr *udph = (struct udphdr *) (header); //+ sizeof(struct iphdr));
-
-	//UDP header
+	/* UDP header */
+	udph = (struct udphdr *) (header); 
     udph -> uh_sport = serv_addr.sin_port;
     udph-> uh_ulen = htons(8 + sizeof(buffer));
     udph-> uh_sum = 0; 
 
-	// open file
-	FILE *fp; 
-	fp = fopen(userInput -> filename, "r");  //This assumes that the file is in the same directory in which we're runing this program 
-	printf("file was opened \n");
-	if (NULL==fp){
-		error("ERROR: File did not open ");
-	}
+	/* open file */
+	fp = fopen(userInput -> filename, "r");
+	if (NULL==fp) error("ERROR: File did not open ");
+
+	printf("Server successfully opened and awaiting clients\n");
+
 	while(1) {
-		rewind(fp); // puts file pointer back to beginning		
-		// Use recvmsg() with the msg[] buffers initialized so that the first 
-		// one receives the IP header, then the second one will only contain 
-		// data.	
-		// if doesn't work, try recvmsg with msg[] already made!
-		// http://man7.org/linux/man-pages/man2/recvmsg.2.html
-		// http://pubs.opengroup.org/onlinepubs/009695399/functions/recvmsg.html
-		// microsoft FTW!!
-		// http://developer.nokia.com/community/wiki/Open_C_Sockets:_recv,_recvfrom,_recvmsg_methods
+	/*	 Use recvmsg() with the msg[] buffers initialized so that the first 
+		 one receives the IP header, then the second one will only contain 
+		 data.	
+		 if doesn't work, try recvmsg with msg[] already made!
+		 http://man7.org/linux/man-pages/man2/recvmsg.2.html
+		 http://pubs.opengroup.org/onlinepubs/009695399/functions/recvmsg.html
+		 microsoft FTW!!
+		 http://developer.nokia.com/community/wiki/Open_C_Sockets:_recv,_recvfrom,_recvmsg_methods
+		*/
+		check = recvfrom(sockfd, (void *)data, 528, 0, (struct sockaddr *)&cli_addr, &clilen);
+		if (check < 0) error("ERROR: recvfrom failed");
+/*
+		memcpy out ip header possibly and fill in cli_addr to send to!!
+		so it doesn't get send to everyone:
+		so possibly because cli_addr not filled is in broadcast mode!!
+		wait but my sendto even goes to itself?? and echoes everywhere
 
-		recsize = recvfrom(sockfd, (void *)data, 528, 0, (struct sockaddr *)&cli_addr, &clilen);
-		if (recsize < 0) {
-      		error("ERROR: recvfrom failed");
-		}
-
-		// memcpy out ip header possibly and fill in cli_addr to send to!!
-		// so it doesn't get send to everyone:
-		// so possibly because cli_addr not filled is in broadcast mode!!
-		// wait but my sendto even goes to itself?? and echoes everywhere
-
-		printf("client buffer: %s\n", data+28); // shows up as connecting!!!!!
+		//printf("client buffer: %s\n", data+28); // shows up as connecting!!!!!
 		// information is in form ip header(20) + udp header(8) + buffer
 		// so message is data + 28!!!
+*/
 		if(strcmp("connecting", data+28) == 0) {
-		// set destination port as given by client 
-		memcpy(port, data+20, 2);
-		uint16_t client_portno = ntohs(*port); // get the client port number	
-		udph -> uh_dport = client_portno;
+			rewind(fp); 	
+			/* set destination port as given by client */
+			memcpy(port, data+20, 2);
+			client_portno = ntohs(*port); /* get the client port number	*/
+			udph -> uh_dport = client_portno;
 
-		bzero(data, 528);
-		memcpy(data, header, 8);
-		bzero(buffer, 500); 
-		printf("About to send...\n");
-		//put in ip header to send?
+			bzero(data, (userInput->packet_size)+20+8);
+			memcpy(data, header, 8);
+			bzero(buffer, userInput->packet_size); 
 
-		// try regular textfile and a binary file
-
-		while(fgets(buffer, 500, fp) != NULL) {
-		// weird because picks up its own packets too!
-		//while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
-			printf("SENDING %s\n\n",buffer);
-			memcpy(data+8, buffer, 500);
-			//n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
-			// fill in cli_addr???
-			n = sendto(sockfd, data, 508,0,(struct sockaddr *)&cli_addr, clilen);
-			if (n < 0) error("ERROR sending datagram");
-			usleep(userInput -> packet_delay);
-		} 
-		memset(data+8, 0, 500);
-		memcpy(data+8, "End", sizeof("End"));
-		printf("SENDING %s\n\n", data+8);
-		n = sendto(sockfd, data, 508, 0,(struct sockaddr *)&cli_addr, clilen);
-		if (n < 0) error("ERROR sending terminator to the socket.");
-		memset(data, 0, 528);
-	 }
+			while(fgets(buffer, userInput->packet_size, fp) != NULL) {
+			/* weird because picks up its own packets too! */
+			/* while(fgets(buffer, (userInput -> packet_size),fp) != NULL) { */
+				memcpy(data+8, buffer, userInput->packet_size);
+				/* fill in cli_addr??? */
+				check = sendto(sockfd, data, (userInput->packet_size)+8,0,(struct sockaddr *)&cli_addr, clilen);
+				if (check < 0) error("ERROR sending datagram");
+				usleep(userInput -> packet_delay);
+			} 
+			memset(data+8, 0, userInput->packet_size);
+			memcpy(data+8, "End", sizeof("End"));
+			check = sendto(sockfd, data, (userInput->packet_size)+8, 0,(struct sockaddr *)&cli_addr, clilen);
+			if (check < 0) error("ERROR sending terminator to the socket.");
+			memset(data, 0, (userInput->packet_size)+8);
+			printf("Received a client and sent file successfully.\n");
+	 	}
     }
 
-    close(fp);
+    fclose(fp);
 
 }
-*/
+
 int main(int argc, char** argv) {
 	Inputs userInput;
 	
@@ -291,9 +281,8 @@ int main(int argc, char** argv) {
 	case 1: 
 		Mode_1(&userInput);
 		break;
-/*
 	case 2: 
-		Mode_2(&userInput); */
+		Mode_2(&userInput); 
 	default:
 		error("ERROR: Invalid Mode");
 		break;
