@@ -101,12 +101,13 @@ void Mode_0(struct Inputs *userInput)
       /* for stats text file */
       diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
       fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+      printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
     } else {
       first_packet = 0;
     }
 
     clock_gettime(CLOCK_REALTIME, &start_in_loop);  
-
+    printf("Packet received");
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp); /* if doing this, "End" is not written, but last packet "End" is timed */
   }
@@ -167,7 +168,7 @@ void Mode_1(struct Inputs *userInput)
   fp_stat = fopen(userInput -> stats_filename, "w");  
   if (NULL==fp_stat) error("ERROR: Stats file did not open ");
 
-  check = sendto(sockfd, "connecting", sizeof("connecting"), 0, (struct sockaddr *)&serv_addr, serv_len);
+  check = sendto(sockfd, "connecting", 20, 0, (struct sockaddr *)&serv_addr, serv_len);
   if (check < 0) error("Error: Sending inital packet");
   first_packet = 1;
 
@@ -181,12 +182,12 @@ void Mode_1(struct Inputs *userInput)
       /* writing to stats text file */
       diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
       fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+      printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
     } else {
       first_packet = 0;
     }
 
     clock_gettime(CLOCK_REALTIME, &start_in_loop); 
-
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp); /* if doing this, "End" is not written, but last packet "End" is timed */
   }

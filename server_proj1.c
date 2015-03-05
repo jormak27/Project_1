@@ -93,6 +93,7 @@ void Mode_0(struct Inputs *userInput){
 		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			check = write(newsockfd, buffer, userInput -> packet_size);
 			if (check < 0) {error("ERROR writing to the socket."); }
+			printf("Packet received");
 			usleep(userInput -> packet_delay);
 		}
 
@@ -108,51 +109,52 @@ void Mode_0(struct Inputs *userInput){
 
 void Mode_1(struct Inputs *userInput){
 
-	int sockfd, clilen, check, terminator_size;
+	int sockfd, serv_len, cli_len, check, terminator_size;
 	struct sockaddr_in serv_addr, cli_addr; 
-	char buffer[userInput -> packet_size];
+	char *buffer, terminator[3];
 	FILE *fp; 
-	char *terminator="End"; // how to get over this?
 
-	// initialize known variables
-	clilen = sizeof(cli_addr); 
+	/* initialize known variables */
+	cli_len = sizeof(cli_addr); 
+	serv_len = sizeof(serv_addr);
+	memcpy(terminator, "End", 3);
 	terminator_size = strlen(terminator);
 
-	clilen = sizeof(cli_addr); 
+	buffer = (char *) malloc(userInput->packet_size);
+	if (buffer == NULL) error("Failed to allocate memory for given packet size");
 
-	sockfd = socket(AF_INET, SOCK_DGRAM, 0);  //sockfd is socket file descriptor.  This is just returns an integer.  
+	sockfd = socket(AF_INET, SOCK_DGRAM, 0);   
 	if (0>sockfd) error("ERROR Opening socket"); 
 
-	bzero ((char*) &serv_addr, sizeof(serv_addr));
+	bzero ((char*) &serv_addr, serv_len);
 	serv_addr.sin_family = AF_INET;   
-	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). // WHAT TO PUT HERE FOR IP ADDRESS??? 
-	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
-	check = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_addr.s_addr = INADDR_ANY; 
+	serv_addr.sin_port = htons(userInput -> portno);  
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, serv_len);
 	if (check < 0) error("ERROR: Error on binding"); 
 
-	// open file
+	/* open file */
 	fp = fopen(userInput -> filename, "r"); 
 	if (NULL==fp) error("ERROR: File did not open");
 
 	printf("Server successfully opened and awaiting clients.\n");
 
 	while(1) {
-		rewind(fp); // puts file pointer back to beginning		
+		rewind(fp); /* puts file pointer back to beginning */		
 		
-		check = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&cli_addr, &clilen);
+		check = recvfrom(sockfd, buffer, userInput->packet_size, 0, (struct sockaddr *)&cli_addr, &cli_len);
 		if (check < 0) error("ERROR: recvfrom failed");
-
-		// only if it is our client, then send data
+		/* only if it is our client, then send data */
     	if (strcmp("connecting", buffer) == 0) {
 
 			bzero(buffer, userInput -> packet_size);
 
 			while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
-				check = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+				check = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, cli_len);
 				if (check < 0) error("ERROR sending datagram");
 				usleep(userInput -> packet_delay);
 			} 
-			check = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
+			check = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, cli_len);
 			if (check < 0) error("ERROR sending terminator to the socket.");
     		printf("Received a client and sent file successfully.\n");
     	}
