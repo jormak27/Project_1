@@ -19,8 +19,9 @@ Gary Hoang
 # include <string.h>
 # include <strings.h>
 # include <netdb.h> 
-# include <time.h>
 # include <netinet/in_systm.h>
+# include <unistd.h>
+# include <fcntl.h>
 
 # define QUEUE 10 
 
@@ -35,71 +36,76 @@ void error(char *msg){
 	exit(1);
 }
 
-// Structure For Holding The User Inputs 
-struct Inputs {
+/* Structure For Holding The User Inputs */ 
+typedef struct Inputs {
 	int mode;
 	int portno;
 	char *filename;
 	int packet_size;
 	int packet_delay;
-};
+}Inputs;
 
 void Mode_0(struct Inputs *userInput){
 
-	int sockfd, newsockfd, clilen, check, terminator_size;
+	int sockfd, newsockfd,  serv_len, cli_len, check, terminator_size;
 	struct sockaddr_in serv_addr, cli_addr; 
-	char buffer[userInput -> packet_size];
+	char *buffer, terminator[3];
 	FILE *fp;
-	char *terminator="End"; // how to get over this?
 
-	// initialize known variables
-	clilen = sizeof(cli_addr); 
+	/* initialize known variables */
+	cli_len = sizeof(cli_addr); 
+	serv_len = sizeof(serv_addr);
+	memcpy(terminator, "End", 3);
 	terminator_size = strlen(terminator);
 
-	// make socket
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);  
-	if (0>sockfd) error("ERROR Opening socket"); 
+	buffer = (char *) malloc(userInput->packet_size);
+	if (buffer == NULL) error("Failed to allocate memory for given packet size");
 
-	// fill in server struct
-	bzero ((char*) &serv_addr, sizeof(serv_addr));
+	/* make socket */
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);  
+	if (sockfd < 0) error("ERROR Opening socket"); 
+
+	/* fill in server struct */
+	bzero ((char*) &serv_addr, serv_len);
 	serv_addr.sin_family = AF_INET;   
-	serv_addr.sin_addr.s_addr = INADDR_ANY;   //assigns the socktet to IP address (INADDR_ANY). 
-	serv_addr.sin_port = htons(userInput -> portno);  // returns port number converted (host byte order to network short byte order)
+	serv_addr.sin_addr.s_addr = INADDR_ANY;   /* assigns the socktet to IP address (INADDR_ANY). */
+	serv_addr.sin_port = htons(userInput -> portno);  /* returns port number converted (host byte order to network short byte order) */
 	
-	// bind and listen
-	check = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	/* bind and listen */
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, serv_len);
 	if (check < 0) error("ERROR: Error on binding"); 
 	listen(sockfd, QUEUE);
 
-	// open file for reading
+	/* open file for reading */
 	fp = fopen(userInput -> filename, "r");  
 	if (NULL==fp) error("ERROR: File did not open ");
 
 	printf("Server successfully opened and awaiting clients.\n");
 
 	while(1) {
-		rewind(fp); // puts file pointer back to beginning
-		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);   // here, the process BLOCKS until a client connects to this server (on the port number specified by user input)
+		rewind(fp); /* puts file pointer back to beginning */
+		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &cli_len); 
 		if (newsockfd < 0) error("ERROR on accept"); 
 	
 		bzero(buffer, userInput -> packet_size);
 
-		// send our file
+		/* send our file */
 		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			check = write(newsockfd, buffer, userInput -> packet_size);
 			if (check < 0) {error("ERROR writing to the socket."); }
 			usleep(userInput -> packet_delay);
 		}
 
-		// send our terminator
+		/* send our terminator */
 		check = write(newsockfd, terminator, terminator_size);
 		if (check < 0) error("ERROR writing terminator to the socket.");
 
     	printf("Received a client and sent file successfully.\n");
     }
-    close(fp);
+    check = fclose(fp);
+    if (check == EOF) error("Error: Failed to close file.");
 }
-/*
+
 void Mode_1(struct Inputs *userInput){
 
 	int sockfd, clilen, check, terminator_size;
@@ -151,9 +157,9 @@ void Mode_1(struct Inputs *userInput){
     		printf("Received a client and sent file successfully.\n");
     	}
     }
-    close(fp);
+    fclose(fp);
 }
-
+/*
 void Mode_2(struct Inputs *userInput){
 
 	int sockfd, clilen, n, recsize;
@@ -262,11 +268,12 @@ void Mode_2(struct Inputs *userInput){
 }
 */
 int main(int argc, char** argv) {
+	Inputs userInput;
+	
 	if (argc != 6) {
 		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
 	}
 
-	struct Inputs userInput;
 
 	userInput.mode = atoi(argv[1]);
 	userInput.portno = atoi(argv[2]);
@@ -279,10 +286,10 @@ int main(int argc, char** argv) {
 	case 0: 
 		Mode_0(&userInput);
 		break;
-/*
 	case 1: 
 		Mode_1(&userInput);
 		break;
+/*
 	case 2: 
 		Mode_2(&userInput); */
 	default:
