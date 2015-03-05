@@ -99,7 +99,7 @@ void Mode_0(struct Inputs *userInput){
     }
     close(fp);
 }
-
+/*
 void Mode_1(struct Inputs *userInput){
 
 	int sockfd, clilen, check, terminator_size;
@@ -260,7 +260,7 @@ void Mode_2(struct Inputs *userInput){
     close(fp);
 
 }
-
+*/
 int main(int argc, char** argv) {
 	if (argc != 6) {
 		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
@@ -278,12 +278,16 @@ int main(int argc, char** argv) {
 
 	case 0: 
 		Mode_0(&userInput);
+		break;
+/*
 	case 1: 
 		Mode_1(&userInput);
+		break;
 	case 2: 
-		Mode_2(&userInput);
+		Mode_2(&userInput); */
 	default:
 		error("ERROR: Invalid Mode");
+		break;
 	}
 
 	return 0;

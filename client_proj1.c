@@ -20,6 +20,8 @@ Gary Hoang
 # include <strings.h>
 # include <netdb.h> 
 # include <netinet/in_systm.h>
+# include <signal.h>
+# include <unistd.h>
 
 /* for clock_gettime */
 # include <stdint.h> /* for uint64 definition */
@@ -27,20 +29,23 @@ Gary Hoang
 
 # define BILLION 1000000000L
 
+/* clock_gettime method declarations */
+int clock_gettime(clockid_t clk_id, struct timespec *tp);
+
 void error(char *msg)
 {
    perror(msg);
    exit(0);
 }
 
-struct Inputs
+typedef struct Inputs
 {
   int mode;
   char *ip_addr;
   int portno;
   char *recv_file;
   char *stats_filename;
-};
+} Inputs;
 
 void Mode_0(struct Inputs *userInput)
 {
@@ -49,29 +54,33 @@ void Mode_0(struct Inputs *userInput)
   struct sockaddr_in serv_addr; 
   struct hostent *server;
   FILE *fp, *fp_stat;
-  struct timespec start_in_loop, end_in_loop; // for clocking between packets
-  struct timespec start, end; // for timing the entire connection
-  long long unsigned int diff;
+  /* for clocking between packets */
+  struct timespec start_in_loop, end_in_loop; 
+  /* for timing the entire connection */
+  struct timespec start, end; 
+  uint64_t diff;
+  char *buffer;
 
   size = 1000; 
-  char buffer[size];
+  buffer = (char *) malloc(size);
 
-  clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
+  clock_gettime(CLOCK_REALTIME, &start); /* mark start time */
 
-  //sockfd is socket file descriptor.  This is just returns an integer.
+  /* sockfd is socket file descriptor.  
+  This is just returns an integer. */
   sockfd = socket(AF_INET, SOCK_STREAM, 0);    
   if (sockfd < 0) error("ERROR Opening socket"); 
 
   server = gethostbyname(userInput -> ip_addr);
   if (NULL == server) error("ERROR No host");
   
-  // fill in server struct
+  /* fill in server struct */
   bzero((char *)&serv_addr, sizeof(serv_addr));
   serv_addr.sin_family = AF_INET;
   bcopy((char *) server->h_addr, (char *) &serv_addr.sin_addr.s_addr, server->h_length);
   serv_addr.sin_port = htons(userInput -> portno);
 
-  // open our file to write to
+  /* open our file to write to */
   fp = fopen(userInput -> recv_file, "w"); 
   if (NULL==fp) error("ERROR: File did not open "); 
 
@@ -82,42 +91,42 @@ void Mode_0(struct Inputs *userInput)
   if (NULL == fp_stat) error("ERROR: File did not open ");
 
   first_packet = 1;
-  // receiving
+  /* receiving */
   while(1) {
     bzero(buffer, size);
 
     check = read(sockfd, buffer, size);
     if (check < 0) error("ERROR inital reading from socket");
     if (first_packet == 0) {
-      clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
-      // for stats text file
+      clock_gettime(CLOCK_REALTIME, &end_in_loop);
+      /* for stats text file */
       diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
-      fprintf(fp_stat, "elapsed time between packets = %llu nanoseconds or %f seconds (rounded)\n\n", (long long unsigned int) diff, (double)(diff/BILLION));
-      printf("elapsed time between packets = %llu nanoseconds or %f seconds (rounded)\n\n", (long long unsigned int) diff, (double)(diff/BILLION));
+      fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %f seconds (rounded)\n\n", (long unsigned int) diff, (double)(diff/BILLION));
+      printf("elapsed time between packets = %lu nanoseconds or %f seconds (rounded)\n\n", (long unsigned int) diff, (double)(diff/BILLION));
     } else {
       first_packet = 0;
     }
 
-    clock_gettime(CLOCK_MONOTONIC, &start_in_loop);  
+    clock_gettime(CLOCK_REALTIME, &start_in_loop);  
 
     if (strcmp("End", buffer) == 0) break;
-    fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
+    fputs(buffer, fp); /* if doing this, "End" is not written, but last packet "End" is timed */
   }
 
-  // tells how big our file is
-  printf("Total size of file.txt = %d bytes\n\n", ftell(fp));
+  /* tells how big our file is */
+  printf("Total size of file.txt = %ld bytes\n\n", ftell(fp));
   
   fclose(fp_stat);
   fclose(fp);
 
-  /* now will try POSIX-standard clock_gettime function - someone said is not ansi C*/ 
-  clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
+  clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
-  printf("elapsed time of connection = %llu nanoseconds or %f seconds (rounded) \n", (long long unsigned int) diff, (double)(diff/BILLION));
+  printf("elapsed time of connection = %lu nanoseconds or %f seconds (rounded) \n", (long unsigned int) diff, (double)(diff/BILLION));
 
 }
 
+/*
 void Mode_1(struct Inputs *userInput)
 {
 
@@ -129,14 +138,14 @@ void Mode_1(struct Inputs *userInput)
   char buffer[size];
   FILE *fp, *fp_stat;
   struct timespec start_in_loop, end_in_loop;
-
+*/
   /* declarations for clock_gettime */
-  uint64_t diff;
-  struct timespec start, end;
+/*  uint64_t diff;
+  struct timespec start, end; */
 
-  clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
+/*  clock_gettime(CLOCK_MONOTONIC, &start); *//* mark start time */
 
-  sockfd = socket(AF_INET, SOCK_DGRAM, 0); 
+/*  sockfd = socket(AF_INET, SOCK_DGRAM, 0); 
   if (0>sockfd) { error("ERROR Opening socket"); }
 
   server = gethostbyname(userInput -> ip_addr);
@@ -184,11 +193,11 @@ void Mode_1(struct Inputs *userInput)
   
   fclose(fp_stat);
   fclose(fp);
-
+  */
   /* finishing clock_gettime */
-  clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
+/*  clock_gettime(CLOCK_MONOTONIC, &end); *//* mark the end time */
 
-  diff = end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/BILLION;
+/*  diff = end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/BILLION;
   printf("elapsed time of connection = %llu seconds\n", (long long unsigned int) diff);
 }
 
@@ -207,14 +216,14 @@ void Mode_2(struct Inputs *userInput)
   char header[8], data[size + 8];
   memset(buffer, 0, size);
   memset(header, 0, 8);
-
+*/
   /* declarations for clock_gettime */
-  uint64_t diff;
+/*  uint64_t diff;
   struct timespec start, end;
 
-  clock_gettime(CLOCK_MONOTONIC, &start); /* mark start time */
+  clock_gettime(CLOCK_MONOTONIC, &start); *//* mark start time */
 
-  sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
+ /* sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  //sockfd is socket file descriptor.  This is just returns an integer.  
   //sockfd = socket(AF_INET, SOCK_DGRAM, 0);
   if (0>sockfd){
     error("ERROR Opening socket");
@@ -230,7 +239,7 @@ void Mode_2(struct Inputs *userInput)
 
   // need to check this when we get to actual testing
   // because could be working since we are on same host.
-  // let's see what happens when we actually test.
+  // let's see what happens when we actually test. */
 /*
   bzero ((char*) &cli_addr, sizeof(cli_addr));
   cli_addr.sin_family = AF_INET;   
@@ -241,8 +250,8 @@ void Mode_2(struct Inputs *userInput)
     error("ERROR: Error on binding");
   } */
 
-  // opening file to write received messages to
-  fp = fopen(userInput -> recv_file, "w");
+  /* opening file to write received messages to */
+/*  fp = fopen(userInput -> recv_file, "w");
   if (NULL==fp) { error("ERROR: File did not open "); }
 
   // opening file to write stats to
@@ -312,23 +321,23 @@ void Mode_2(struct Inputs *userInput)
   
   // closing all our files
   fclose(fp_stat);
-  fclose(fp);
+  fclose(fp);*/
 
   /* finishing clock_gettime */
-  clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
+/*  clock_gettime(CLOCK_MONOTONIC, &end); *//* mark the end time */
 
-  diff = end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/BILLION;
+/*  diff = end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/BILLION;
   printf("elapsed time of connection = %llu seconds\n", (long long unsigned int) diff);
 
-}
+} */
 
-int main(int argc, char *argv[]) // Three arguments provided:  client host port (host is your localhost if both processes are on your own machine)
+int main(int argc, char *argv[]) 
 { 
+  Inputs userInput; 
+
   if (argc != 6) {
     error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename>");
   }
-  
-  struct Inputs userInput;
 
   userInput.mode = atoi(argv[1]);
   userInput.ip_addr = argv[2]; 
@@ -340,15 +349,17 @@ int main(int argc, char *argv[]) // Three arguments provided:  client host port 
     case 0: 
       Mode_0(&userInput);
       break;
-    case 1: 
+ /*   case 1: 
       Mode_1(&userInput);
       break;
     case 2:
       Mode_2(&userInput);
-      break;
+      break; */
     default:
       error("ERROR: Invalid Mode");
       break;
   }
+
+  return 0;
 
 }
