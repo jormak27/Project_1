@@ -20,6 +20,9 @@
 
 # define BILLION 1000000000L
 
+# define TRUE 1
+# define FALSE 0
+
 void error(char *msg)
 {
    perror(msg);
@@ -221,6 +224,7 @@ void Mode_2(struct Inputs *userInput)
   struct hostent *server; 
   int size = 1000; 
   char buffer[size];
+  int so_broadcast;
   
   // trying to add make its udp header!!
   char header[8], data[size + 8];
@@ -271,7 +275,7 @@ void Mode_2(struct Inputs *userInput)
 
     //UDP header
     struct udphdr *udph = (struct udphdr *) (header);
-    udph -> uh_sport = cli_addr.sin_port; // tried to bind
+    udph -> uh_sport = cli_addr.sin_port; // tried to bind - left as zero and it worked!!
     udph -> uh_dport = serv_addr.sin_port;
     udph-> uh_ulen = htons(8 + strlen("connecting")); 
     udph-> uh_sum = 0; 
@@ -279,33 +283,51 @@ void Mode_2(struct Inputs *userInput)
     memcpy(data, header, 8);
     memcpy(data+8, "connecting", sizeof("connecting"));
   
-    // "connecting" has 10 bytes + 1 for null terminator
-  n = sendto(sockfd, data, sizeof(data)+1,0,(struct sockaddr *)&serv_addr, server_len);
+  n = sendto(sockfd, data, sizeof(data),0,(struct sockaddr *)&serv_addr, server_len);
+  //n = sendto(sockfd, "connecting", sizeof("connecting"), 0,(struct sockaddr *)&serv_addr, server_len);
   printf("send initial packet\n");
-  bzero(buffer, size);
-  bzero(data, size);
+  
+  memset(buffer, 0, 1000);
+  memset(data, 0, 1008);
   // receiving
+
   while(1) {
     struct timespec start_in_loop, end_in_loop;
     clock_gettime(CLOCK_MONOTONIC, &start_in_loop);  
-    recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr, &server_len); // void * ??? 
+    recsize = recvfrom(sockfd, buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr, &server_len); // void * ??? 
     if (recsize < 0) {
           error("ERROR: recvfrom failed in client");
     }
-    printf("buffer is %s\n", buffer+28);
-    //printf("received size %d\n", recsize);
-      //printf("buffer: %s\n", buffer); 
-      //printf("buffer size: %d\n", strlen(buffer));
+
+    // should probably add ip address to confirm!!!
+    // ????
+    printf("BUFFER %s\n", buffer+28);
+    if(strcmp("connecting", buffer+28) != 0) {
+
+    // client only works on first time through.
+/*    char port[2];
+    memcpy(port, buffer+20, 2);
+    uint16_t recv_portno = ntohs(*port); 
+    printf("received source port number: %d\n", recv_portno);
+    memcpy(port, buffer+22, 2);
+    uint16_t dest_portno = ntohs(*port);
+    printf("received destination port number: %d\n", dest_portno);
+*/
+    // ip address?
+    // source address are byte 12-15 - maybe have to go by this?
       clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
 
       // for stats text file
       diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + end_in_loop.tv_nsec - start_in_loop.tv_nsec;
       fprintf(fp_stat, "elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
-      printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
+      //printf("elapsed time of packet = %llu nanoseconds\n", (long long unsigned int) diff);
       if (strcmp("End", buffer+28) == 0) break;
+      // client is not picking "End"!!!
       fputs(buffer+28, fp);  
-      bzero(buffer, size);     
-  }
+      bzero(buffer, size);
+      }  
+    }
+
 
   // tells how big our file is
   int len = ftell(fp); // tells where our file pointer is in file
@@ -321,7 +343,6 @@ void Mode_2(struct Inputs *userInput)
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + end.tv_nsec - start.tv_nsec;
   printf("elapsed time of connection = %llu nanoseconds\n", (long long unsigned int) diff);
-
 
 }
 

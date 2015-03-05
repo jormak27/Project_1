@@ -14,6 +14,9 @@
 
 # define QUEUE 10 
 
+# define TRUE 1
+# define FALSE 0
+
 void error(char *msg){
 	perror(msg);
 	exit(1);
@@ -151,6 +154,7 @@ void Mode_2(struct Inputs *userInput){
 	//char buffer[userInput -> packet_size], header[8];
 	char buffer[500], header[8];
 	char data[528], port[2];
+	int so_broadcast;
 
 	memset(buffer, 0, 500);
 	memset(header, 0, 8);
@@ -177,8 +181,7 @@ void Mode_2(struct Inputs *userInput){
 
 	//UDP header
     udph -> uh_sport = serv_addr.sin_port;
-    // destination port set in while loop 
-    udph-> uh_ulen = htons(8 + sizeof(buffer)); //tcp header sizeof
+    udph-> uh_ulen = htons(8 + sizeof(buffer));
     udph-> uh_sum = 0; 
 	// still need to fill in destination port for udp header
 
@@ -191,7 +194,6 @@ void Mode_2(struct Inputs *userInput){
 	}
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning		
-		// for raw sockets, RECVFROM adds a 20 byte header
 
 		// do we need ip and udp header
 // Use recvmsg() with the msg[] buffers initialized so that the first 
@@ -204,18 +206,7 @@ But of course, when calling recvfrom() on a raw socket,
 you are given the raw IP datagram, while the sockaddr struct 
 is not filled in.
 		*/
-		/*
-Communication along a UDP path, on the other hand, is one-way. 
-The datagram sender can send messages (through sendto()), and the 
-datagram receiver can receive them (through recvfrom()), but the 
-receiver can't send message back to the sender. However, you can 
-simulate a two-way UDP conversation by binding both sockets. 
-This doesn't change the definition of the UDP path, or the capabilities 
-of the two types of datagram sockets, it simply means that a bound 
-datagram socket can act as a receiver 
-(it can call recvfrom()) or as a sender (it can call sendto()).
 
-		*/
 		// for receiving the IP header is always included in the packet!!
 		// which is the 20 extra bytes !!!
 
@@ -229,45 +220,68 @@ datagram socket can act as a receiver
 		if (recsize < 0) {
       		error("ERROR: recvfrom failed");
 		}
-		printf("received size: %d\n", recsize);
-		printf("client buffer?: %s\n", data+28); // shows up as connecting!!!!!
+
+		// memcpy out ip header possibly and fill in cli_addr to send to!!
+		// so it doesn't get send to everyone:
+		// so possibly because cli_addr not filled is in broadcast mode!!
+		// wait but my sendto even goes to itself?? and echoes everywhere
+
+		//printf("received size: %d\n", recsize);
+		printf("client buffer: %s\n", data+28); // shows up as connecting!!!!!
 		// information is in form ip header(20) + udp header(8) + buffer
 		// so information is data + 28!!!
-
+		if(strcmp("connecting", data+28) == 0) {
 		// set destination port as given by client 
 		memcpy(port, data+20, 2);
 		uint16_t client_portno = ntohs(*port); // got the port number of client
 		printf("client source port number: %d\n", client_portno);
-		memcpy(port, data+22, 2);
-		uint16_t dest_portno = ntohs(*port);
-		printf("client destination port number: %d\n", dest_portno);		
+		//memcpy(port, data+22, 2);
+		//uint16_t dest_portno = ntohs(*port);
+		//printf("client destination port number: %d\n", dest_portno);		
 		udph -> uh_dport = client_portno;
-		printf("server source port %d\n", udph->uh_sport);
-		printf("server dest port %d\n", udph->uh_dport);	
+		//printf("server source port %d\n", udph->uh_sport);
+		//printf("server dest port %d\n", udph->uh_dport); 	
 
-		if(dest_portno != udph->uh_sport) {	
-
-		bzero(data, 528); // to get rid of connecting
+		bzero(data, 528);
 		memcpy(data, header, 8);
 		bzero(buffer, 500); 
 		printf("About to send...\n");
 
+		//memcpy(port, data, 2);
+		//dest_portno = ntohs(*port);
+		//printf("server source port number: %d\n", dest_portno);	
+		//memcpy(port, data+2, 2);
+		//client_portno = ntohs(*port);
+		//printf("server destination port number: %d\n", client_portno);	
+
+		//put in ip header to send?
+
+		// try regular textfile and a binary file
+
 		while(fgets(buffer, 500, fp) != NULL) {
 		// weird because picks up its own packets too!
 		//while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
-			//printf("this is a buffer %s\n\n",buffer);
+			printf("SENDING %s\n\n",buffer);
 			memcpy(data+8, buffer, 500);
 			//n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
+			// fill in cli_addr
 			n = sendto(sockfd, data, 508,0,(struct sockaddr *)&cli_addr, clilen);
 			if (n < 0) error("ERROR sending datagram");
 			//printf("n: %d\n", n);
 			usleep(userInput -> packet_delay);
 		} 
-		int terminator_size = 3;
-		char terminator[3]="End";
-		n = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, clilen);
+		//End terminator does not show up!!! Maybe still firing others and never shows this
+		memset(data+8, 0, 1000);
+		memcpy(data+8, "End", sizeof("End"));
+		//int terminator_size = 3;
+		//char terminator[3]="End";
+		//memset(buffer, 0, 500);
+		//memcpy(buffer, header, 8);
+		//memcpy(buffer+8, "End", 3);
+		printf("SENDING %s\n\n", data+8);
+		n = sendto(sockfd, data, 508, 0,(struct sockaddr *)&cli_addr, clilen);
 		if (n < 0) error("ERROR sending terminator to the socket.");
-		}
+	 }
     }
 
     close(fp);
