@@ -259,7 +259,13 @@ void Mode_2(struct Inputs *userInput)
   if (0>n){
     error("ERROR: Error on binding");
   }
-
+/*
+  so_broadcast = TRUE; 
+  n = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &so_broadcast, sizeof(so_broadcast));
+  if(n<0) {
+    error("ERROR setsockopt did not work");
+  }
+*/
   // file to write to
   FILE *fp; 
   fp = fopen(userInput -> recv_file, "w");  // This assumes that the file is in the same directory in which we're runing this program 

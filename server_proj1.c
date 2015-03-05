@@ -176,6 +176,13 @@ void Mode_2(struct Inputs *userInput){
 	}
 	clilen = sizeof(cli_addr); 
 
+	// so it doesn't get sent everywhere
+/*	so_broadcast = TRUE;  // its not working
+	n = setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &so_broadcast, sizeof(so_broadcast));
+	if(n<0) {
+		error("ERROR setsockopt did not work");
+	}
+*/
 	//struct iphdr *iph = (struct iphdr *)buffer; 
 	struct udphdr *udph = (struct udphdr *) (header); //+ sizeof(struct iphdr));
 
@@ -183,7 +190,6 @@ void Mode_2(struct Inputs *userInput){
     udph -> uh_sport = serv_addr.sin_port;
     udph-> uh_ulen = htons(8 + sizeof(buffer));
     udph-> uh_sum = 0; 
-	// still need to fill in destination port for udp header
 
 	// open file
 	FILE *fp; 
@@ -194,22 +200,9 @@ void Mode_2(struct Inputs *userInput){
 	}
 	while(1) {
 		rewind(fp); // puts file pointer back to beginning		
-
-		// do we need ip and udp header
 // Use recvmsg() with the msg[] buffers initialized so that the first 
 // one receives the IP header, then the second one will only contain 
 // data.
-// raw_sendmsg() ?
-
-		/* http://www.tagwith.com/question_440319_recvfrom-with-raw-sockets-get-just-the-data
-But of course, when calling recvfrom() on a raw socket, 
-you are given the raw IP datagram, while the sockaddr struct 
-is not filled in.
-		*/
-
-		// for receiving the IP header is always included in the packet!!
-		// which is the 20 extra bytes !!!
-
 		// if doesn't work, try recvmsg with msg[] already made!
 		// http://man7.org/linux/man-pages/man2/recvmsg.2.html
 		// http://pubs.opengroup.org/onlinepubs/009695399/functions/recvmsg.html
@@ -226,34 +219,23 @@ is not filled in.
 		// so possibly because cli_addr not filled is in broadcast mode!!
 		// wait but my sendto even goes to itself?? and echoes everywhere
 
-		//printf("received size: %d\n", recsize);
 		printf("client buffer: %s\n", data+28); // shows up as connecting!!!!!
 		// information is in form ip header(20) + udp header(8) + buffer
-		// so information is data + 28!!!
+		// so message is data + 28!!!
 		if(strcmp("connecting", data+28) == 0) {
 		// set destination port as given by client 
 		memcpy(port, data+20, 2);
 		uint16_t client_portno = ntohs(*port); // got the port number of client
-		printf("client source port number: %d\n", client_portno);
+		//printf("client source port number: %d\n", client_portno);
 		//memcpy(port, data+22, 2);
 		//uint16_t dest_portno = ntohs(*port);
 		//printf("client destination port number: %d\n", dest_portno);		
 		udph -> uh_dport = client_portno;
-		//printf("server source port %d\n", udph->uh_sport);
-		//printf("server dest port %d\n", udph->uh_dport); 	
 
 		bzero(data, 528);
 		memcpy(data, header, 8);
 		bzero(buffer, 500); 
 		printf("About to send...\n");
-
-		//memcpy(port, data, 2);
-		//dest_portno = ntohs(*port);
-		//printf("server source port number: %d\n", dest_portno);	
-		//memcpy(port, data+2, 2);
-		//client_portno = ntohs(*port);
-		//printf("server destination port number: %d\n", client_portno);	
-
 		//put in ip header to send?
 
 		// try regular textfile and a binary file
@@ -264,23 +246,17 @@ is not filled in.
 			printf("SENDING %s\n\n",buffer);
 			memcpy(data+8, buffer, 500);
 			//n = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, clilen);
-			// fill in cli_addr
+			// fill in cli_addr???
 			n = sendto(sockfd, data, 508,0,(struct sockaddr *)&cli_addr, clilen);
 			if (n < 0) error("ERROR sending datagram");
-			//printf("n: %d\n", n);
 			usleep(userInput -> packet_delay);
 		} 
-		//End terminator does not show up!!! Maybe still firing others and never shows this
-		memset(data+8, 0, 1000);
+		memset(data+8, 0, 500);
 		memcpy(data+8, "End", sizeof("End"));
-		//int terminator_size = 3;
-		//char terminator[3]="End";
-		//memset(buffer, 0, 500);
-		//memcpy(buffer, header, 8);
-		//memcpy(buffer+8, "End", 3);
 		printf("SENDING %s\n\n", data+8);
 		n = sendto(sockfd, data, 508, 0,(struct sockaddr *)&cli_addr, clilen);
 		if (n < 0) error("ERROR sending terminator to the socket.");
+		memset(data, 0, 528);
 	 }
     }
 
