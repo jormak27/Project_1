@@ -45,14 +45,13 @@ struct Inputs
 void Mode_0(struct Inputs *userInput)
 {
 
-  int sockfd, n, size;
+  int sockfd, check, size, first_packet;
   struct sockaddr_in serv_addr; 
   struct hostent *server;
   FILE *fp, *fp_stat;
-
-  /* declarations for clock_gettime */
+  struct timespec start_in_loop, end_in_loop; // for clocking between packets
+  struct timespec start, end; // for timing the entire connection
   long long unsigned int diff;
-  struct timespec start, end;
 
   size = 1000; 
   char buffer[size];
@@ -61,10 +60,10 @@ void Mode_0(struct Inputs *userInput)
 
   //sockfd is socket file descriptor.  This is just returns an integer.
   sockfd = socket(AF_INET, SOCK_STREAM, 0);    
-  if (0>sockfd){ error("ERROR Opening socket"); }
+  if (sockfd < 0) error("ERROR Opening socket"); 
 
   server = gethostbyname(userInput -> ip_addr);
-  if (NULL == server){ error("ERROR No host"); }
+  if (NULL == server) error("ERROR No host");
   
   // fill in server struct
   bzero((char *)&serv_addr, sizeof(serv_addr));
@@ -74,33 +73,27 @@ void Mode_0(struct Inputs *userInput)
 
   // open our file to write to
   fp = fopen(userInput -> recv_file, "w"); 
-  if (NULL==fp){ error("ERROR: File did not open "); }
+  if (NULL==fp) error("ERROR: File did not open "); 
 
-  n = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
-  if (0 < n) {
-    error("ERROR connecting");
-  }
-  printf("Finished connecting\n");
+  check = connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr));
+  if (check < 0) error("ERROR: connecting");
 
   fp_stat = fopen(userInput -> stats_filename, "w"); 
-  if (NULL==fp_stat) error("ERROR: File did not open ");
-
-  struct timespec start_in_loop, end_in_loop;
-  int first_packet;
+  if (NULL == fp_stat) error("ERROR: File did not open ");
 
   first_packet = 1;
   // receiving
   while(1) {
     bzero(buffer, size);
 
-    n = read(sockfd, buffer, size);
-    if (n < 0) error("ERROR inital reading from socket");
+    check = read(sockfd, buffer, size);
+    if (check < 0) error("ERROR inital reading from socket");
     if (first_packet == 0) {
       clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
       // for stats text file
-      diff = end_in_loop.tv_sec - start_in_loop.tv_sec + (end_in_loop.tv_nsec - start_in_loop.tv_nsec)/BILLION;
-      fprintf(fp_stat, "elapsed time between packet = %llu seconds\n\n", (long long unsigned int) diff);
-      printf("elapsed time between packets = %llu seconds\n\n", (long long unsigned int) diff);
+      diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
+      fprintf(fp_stat, "elapsed time between packets = %llu nanoseconds or %f seconds (rounded)\n\n", (long long unsigned int) diff, (double)(diff/BILLION));
+      printf("elapsed time between packets = %llu nanoseconds or %f seconds (rounded)\n\n", (long long unsigned int) diff, (double)(diff/BILLION));
     } else {
       first_packet = 0;
     }
@@ -120,22 +113,22 @@ void Mode_0(struct Inputs *userInput)
   /* now will try POSIX-standard clock_gettime function - someone said is not ansi C*/ 
   clock_gettime(CLOCK_MONOTONIC, &end); /* mark the end time */
 
-  
-  diff = end.tv_sec - start.tv_sec + (end.tv_nsec - start.tv_nsec)/BILLION;
-  printf("elapsed time of connection = %llu seconds\n", (long long unsigned int) diff);
+  diff = BILLION * (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
+  printf("elapsed time of connection = %llu nanoseconds or %f seconds (rounded) \n", (long long unsigned int) diff, (double)(diff/BILLION));
 
 }
 
 void Mode_1(struct Inputs *userInput)
 {
 
-  int sockfd, n, recsize, size;
+  int sockfd, n, recsize, size, first_packet;
   struct sockaddr_in serv_addr; 
   int server_len = sizeof(serv_addr);
   struct hostent *server; // in header file 
   size = 1000; 
   char buffer[size];
   FILE *fp, *fp_stat;
+  struct timespec start_in_loop, end_in_loop;
 
   /* declarations for clock_gettime */
   uint64_t diff;
@@ -163,20 +156,26 @@ void Mode_1(struct Inputs *userInput)
 
   n = sendto(sockfd, "connecting", sizeof("connecting"), 0, (struct sockaddr *)&serv_addr, server_len);
 
+  first_packet = 1;
+  
   // receiving
   while(1) {
-    struct timespec start_in_loop, end_in_loop;
-    bzero(buffer, size);
-    clock_gettime(CLOCK_MONOTONIC, &start_in_loop);  
 
+    bzero(buffer, size);
     recsize = recvfrom(sockfd, (void *)buffer, sizeof(buffer), 0, (struct sockaddr *)&serv_addr, &server_len); // void * ??? 
     if (recsize < 0) { error("ERROR: recvfrom failed in client"); }
-    clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
 
-    // for stats text file
-    diff = end_in_loop.tv_sec - start_in_loop.tv_sec + (end_in_loop.tv_nsec - start_in_loop.tv_nsec)/BILLION;
-    fprintf(fp_stat, "elapsed time of packet = %llu seconds\n", (long long unsigned int) diff);
-    printf("elapsed time of packet = %llu seconds\n", (long long unsigned int) diff);
+    if (first_packet == 0) {
+      clock_gettime(CLOCK_MONOTONIC, &end_in_loop);
+      // for stats text file
+      diff = end_in_loop.tv_sec - start_in_loop.tv_sec + (end_in_loop.tv_nsec - start_in_loop.tv_nsec)/BILLION;
+      fprintf(fp_stat, "elapsed time between packet = %llu seconds\n\n", (long long unsigned int) diff);
+      printf("elapsed time between packets = %llu seconds\n\n", (long long unsigned int) diff);
+    } else {
+      first_packet = 0;
+    }
+    clock_gettime(CLOCK_MONOTONIC, &start_in_loop); 
+
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp); // if doing this, "End" is not written, but last packet "End" is timed
   }
