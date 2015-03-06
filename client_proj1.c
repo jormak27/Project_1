@@ -277,8 +277,8 @@ void Mode_2(struct Inputs *userInput)
   if (check < 0) error("Error: Dummy Packet failed to send");
   
   /* cleaning our buffer and data */
-  memset(buffer, 0, 1000);
-  memset(data, 0, 1008);
+  memset(buffer, 0, size);
+  memset(data, 0, size+8);
   
   /* While loop to begin receiving */
   first_packet = 1;
