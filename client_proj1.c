@@ -45,6 +45,7 @@ typedef struct Inputs
   int portno;
   char *recv_file;
   char *stats_filename;
+  int size;
 } Inputs;
 
 void Mode_0(struct Inputs *userInput)
@@ -59,7 +60,7 @@ void Mode_0(struct Inputs *userInput)
   uint64_t diff;
   char *buffer;
 
-  size = 1000; 
+  size = userInput -> size; 
   buffer = (char *) malloc(size);
   if (buffer == NULL) error("Error: Failed to allcate memory for client buffer");
   serv_len = sizeof(serv_addr);
@@ -140,7 +141,7 @@ void Mode_1(struct Inputs *userInput)
   uint64_t diff;
 
   /* intializing variables */
-  size = 1000; 
+  size = userInput->size; 
   buffer = (char *) malloc(size);
   if (buffer == NULL) error("Error: Failed to allocate memory for client buffer");
   serv_len = sizeof(serv_addr);
@@ -219,16 +220,16 @@ void Mode_2(struct Inputs *userInput)
   
   /* trying to add make its udp header!! */
   serv_len = sizeof(serv_addr);
-  size = 1000; 
+  size = userInput->size; 
   buffer = (char *) malloc(size);
   if (buffer == NULL) error("Error: Failed to allocate buffer");
-  data = (char *) malloc(size + 8);
+  data = (char *) malloc(size + 28);
   if (data == NULL) error("Error: Failed to allocate data");
 
   /* clean everything up */
   memset(buffer, 0, size);
   memset(header, 0, 8);
-  memset(data, 0, size+8);
+  memset(data, 0, size + 28);
 
   clock_gettime(CLOCK_REALTIME, &start); /* mark start time */
 
@@ -278,7 +279,7 @@ void Mode_2(struct Inputs *userInput)
   
   /* cleaning our buffer and data */
   memset(buffer, 0, size);
-  memset(data, 0, size+8);
+  memset(data, 0, size + 28);
   
   /* While loop to begin receiving */
   first_packet = 1;
@@ -286,13 +287,13 @@ void Mode_2(struct Inputs *userInput)
     clock_gettime(CLOCK_REALTIME, &start_in_loop); 
 
     /* Receive a packet */
-    check = recvfrom(sockfd, buffer, size, 0, (struct sockaddr *)&serv_addr, &serv_len); 
+    check = recvfrom(sockfd, data, size+28, 0, (struct sockaddr *)&serv_addr, &serv_len); 
     if (check < 0) { error("ERROR: recvfrom failed in client"); }
     /* Only if the buffer we get is not our dummy packet write to our file
     Tragedy is that we don't have enough time to check ip addresses
     to ascertain from all broadcasts who our server was again
     FYI: source address are byte 12-15 of IP address */
-    if(strcmp("connecting", buffer+28) != 0) {
+    if(strcmp("connecting", data+28) != 0) {
       if (first_packet == 0) {
         clock_gettime(CLOCK_REALTIME, &end_in_loop);
         /* writing to stats text file */
@@ -304,9 +305,9 @@ void Mode_2(struct Inputs *userInput)
        }
 
       clock_gettime(CLOCK_REALTIME, &start_in_loop); 
-      if (strcmp("End", buffer+28) == 0) break;
-      fputs(buffer+28, fp);  
-      bzero(buffer, size);
+      if (strcmp("End", data+28) == 0) break;
+      fputs(data+28, fp);  
+      bzero(data, size+28);
       }  
     }
 
@@ -328,16 +329,19 @@ void Mode_2(struct Inputs *userInput)
 int main(int argc, char *argv[]) 
 { 
   Inputs userInput; 
+  int packet_size;
 
   if (argc != 6) {
     error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename>");
   }
 
+  packet_size = 5000;
   userInput.mode = atoi(argv[1]);
   userInput.ip_addr = argv[2]; 
   userInput.portno = atoi(argv[3]);
   userInput.recv_file = argv[4];
   userInput.stats_filename = argv[5];
+  userInput.size = packet_size;
 
   switch(userInput.mode){
     case 0: 

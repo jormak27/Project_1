@@ -92,8 +92,12 @@ void Mode_0(struct Inputs *userInput){
 		/* send our file */
 		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 			check = write(newsockfd, buffer, userInput -> packet_size);
-			if (check < 0) {error("ERROR writing to the socket."); }
-			usleep(userInput -> packet_delay);
+			if (check < 0) error("ERROR writing to the socket.");
+			if (userInput -> packet_delay == 0) {
+				usleep(5);
+			} else {
+				usleep(userInput -> packet_delay);
+			}
 		}
 
 		/* send our terminator */
@@ -105,6 +109,8 @@ void Mode_0(struct Inputs *userInput){
     check = fclose(fp);
     if (check == EOF) error("Error: Failed to close file.");
 }
+
+	/* time out function needed */
 
 void Mode_1(struct Inputs *userInput){
 
@@ -152,7 +158,11 @@ void Mode_1(struct Inputs *userInput){
 			while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
 				check = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, cli_len);
 				if (check < 0) error("ERROR sending datagram");
-				usleep(userInput -> packet_delay);
+				if (userInput -> packet_delay == 0) {
+					usleep(5);
+				} else {
+					usleep(userInput -> packet_delay);
+				}
 			} 
 			check = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, cli_len);
 			if (check < 0) error("ERROR sending terminator to the socket.");
@@ -245,7 +255,11 @@ void Mode_2(struct Inputs *userInput){
 				/* fill in cli_addr??? */
 				check = sendto(sockfd, data, (userInput->packet_size)+8,0,(struct sockaddr *)&cli_addr, clilen);
 				if (check < 0) error("ERROR sending datagram");
-				usleep(userInput -> packet_delay);
+				if (userInput -> packet_delay == 0) {
+					usleep(5);
+				} else {
+					usleep(userInput -> packet_delay);
+				}
 			} 
 			memset(data+8, 0, userInput->packet_size);
 			memcpy(data+8, "End", sizeof("End"));
