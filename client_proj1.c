@@ -113,23 +113,19 @@ void Mode_0(struct Inputs *userInput)
 
   /* tells how big our file is */
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
-  
-  check = fclose(fp_stat);
-  if (check == EOF) error("Error: Failed to close stats file");
-  check = fclose(fp);
-  if (check == EOF) error("Error: Failed to close received file");
 
   clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
   printf("elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+  fprintf(fp_stat, "elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+
+  check = fclose(fp_stat);
+  if (check == EOF) error("Error: Failed to close stats file");
+  check = fclose(fp);
+  if (check == EOF) error("Error: Failed to close received file");
 
 }
-
-/* need to add a time out function for recv from */
-/* mode 1 and mode 2 */
-
-/* also remember to close the socket !! */
 
 void Mode_1(struct Inputs *userInput)
 {
@@ -195,15 +191,17 @@ void Mode_1(struct Inputs *userInput)
 
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
   
+  clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
+
+  diff = BILLION * (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
+  printf("elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+  fprintf(fp_stat, "elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+
   check = fclose(fp_stat);
   if (check == EOF) error("Error: Failed to close stats file");
   check = fclose(fp);
   if (check == EOF) error("Error: Failed to close received file");
 
-  clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
-
-  diff = BILLION * (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
-  printf("elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
 } 
 
 
@@ -314,16 +312,17 @@ void Mode_2(struct Inputs *userInput)
 
   /* tells how big our file is */
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
-  
-  /* closing all our files */
-  fclose(fp_stat);
-  fclose(fp);
 
   clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
 
   diff = BILLION * (end.tv_sec - start.tv_sec) + (end.tv_nsec - start.tv_nsec);
   printf("elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+  fprintf(fp_stat, "elapsed time of connection = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
 
+  
+  /* closing all our files */
+  fclose(fp_stat);
+  fclose(fp);
 } 
 
 int main(int argc, char *argv[]) 
