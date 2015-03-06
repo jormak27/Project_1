@@ -27,6 +27,10 @@ Gary Hoang
 # include <stdint.h> /* for uint64 definition */
 # include <time.h> /* for clock_gettime */
 
+/* for timeout and select */
+# include <sys/select.h>
+# include <sys/time.h>
+
 # define BILLION 1000000000L
 
 /* clock_gettime method declarations */
@@ -46,6 +50,8 @@ typedef struct Inputs
   char *recv_file;
   char *stats_filename;
   int size;
+  int timeout_sec;
+  int timeout_msec;
 } Inputs;
 
 void Mode_0(struct Inputs *userInput)
@@ -59,6 +65,9 @@ void Mode_0(struct Inputs *userInput)
   struct timespec start_in_loop, end_in_loop, start, end; 
   uint64_t diff;
   char *buffer;
+  /* for time out */
+  fd_set readfds;
+  struct timeval tv;
 
   size = userInput -> size; 
   buffer = (char *) malloc(size);
@@ -91,25 +100,45 @@ void Mode_0(struct Inputs *userInput)
   if (NULL == fp_stat) error("ERROR: File did not open ");
 
   first_packet = 1;
+
+  /* write in tv */
+  tv.tv_sec = userInput -> timeout_sec;
+  tv.tv_usec = userInput -> timeout_msec; 
+
+  /* clear the set ahead of time */
+  FD_ZERO(&readfds); 
+  /* add descriptor */
+  FD_SET(sockfd, &readfds);
+
   /* receiving */
-  while(1) {
+  while(1) {      
     bzero(buffer, size);
-
-    check = read(sockfd, buffer, size);
-    if (check < 0) error("ERROR inital reading from socket");
-    if (first_packet == 0) {
-      clock_gettime(CLOCK_REALTIME, &end_in_loop);
-      /* for stats text file */
-      diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
-      fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
-      printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+    check = select(sockfd + 1, &readfds, NULL, NULL, &tv);
+    if(check < 0) {
+      error("Error: error occured in select()");
+    } else if (check ==0) { /* reached our timeout */
+      printf("Connection Timed Out. Exitting.\n");
+      break;
     } else {
-      first_packet = 0;
-    }
-
+      check = read(sockfd, buffer, size);
+      if (check < 0) error("ERROR inital reading from socket");
+      if (first_packet == 0) {
+        clock_gettime(CLOCK_REALTIME, &end_in_loop);
+        /* for stats text file */
+        diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
+        fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+        printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+      } else {
+        first_packet = 0;
+      }
     clock_gettime(CLOCK_REALTIME, &start_in_loop);  
     if (strcmp("End", buffer) == 0) break;
     fputs(buffer, fp); /* if doing this, "End" is not written, but last packet "End" is timed */
+    }
+    /* clear the set ahead of time */
+    FD_ZERO(&readfds); 
+    /* add descriptor */
+    FD_SET(sockfd, &readfds);
   }
 
   /* tells how big our file is */
@@ -126,6 +155,7 @@ void Mode_0(struct Inputs *userInput)
   check = fclose(fp);
   if (check == EOF) error("Error: Failed to close received file");
 
+  close(sockfd);
 }
 
 void Mode_1(struct Inputs *userInput)
@@ -139,6 +169,9 @@ void Mode_1(struct Inputs *userInput)
   /* for clocking between packets and the entire connection */
   struct timespec start_in_loop, end_in_loop, start, end;
   uint64_t diff;
+  /* for time out */
+  fd_set readfds;
+  struct timeval tv;
 
   /* intializing variables */
   size = userInput->size; 
@@ -170,24 +203,49 @@ void Mode_1(struct Inputs *userInput)
   if (check < 0) error("Error: Sending inital packet");
   first_packet = 1;
 
+  /* clear the set ahead of time */
+  FD_ZERO(&readfds); 
+  /* add descriptor */
+  FD_SET(sockfd, &readfds); 
+  /* write in tv */
+  tv.tv_sec = userInput -> timeout_sec;
+  tv.tv_usec = userInput -> timeout_msec; 
+
+  /* clear the set ahead of time */
+  FD_ZERO(&readfds); 
+  /* add descriptor */
+  FD_SET(sockfd, &readfds);
+
   /* receiving */
   while(1) {
     bzero(buffer, size);
-    check = recvfrom(sockfd, (void *)buffer, size, 0, (struct sockaddr *)&serv_addr, &serv_len); 
-    if (check < 0) error("Error: Recvfrom failed"); 
-    if (first_packet == 0) {
-      clock_gettime(CLOCK_REALTIME, &end_in_loop);
-      /* writing to stats text file */
-      diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
-      fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
-      printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+    check = select(sockfd + 1, &readfds, NULL, NULL, &tv);
+    if(check < 0) {
+      error("Error: error occured in select()");
+    } else if (check ==0) { /* reached our timeout */
+      printf("Connection Timed Out. Exitting.\n");
+      break;
     } else {
-      first_packet = 0;
-    }
+      check = recvfrom(sockfd, (void *)buffer, size, 0, (struct sockaddr *)&serv_addr, &serv_len); 
+      if (check < 0) error("Error: Recvfrom failed"); 
+      if (first_packet == 0) {
+        clock_gettime(CLOCK_REALTIME, &end_in_loop);
+        /* writing to stats text file */
+        diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
+        fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+        printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+      } else {
+        first_packet = 0;
+      }
 
-    clock_gettime(CLOCK_REALTIME, &start_in_loop); 
-    if (strcmp("End", buffer) == 0) break;
-    fputs(buffer, fp); /* if doing this, "End" is not written, but last packet "End" is timed */
+      clock_gettime(CLOCK_REALTIME, &start_in_loop); 
+      if (strcmp("End", buffer) == 0) break;
+      fputs(buffer, fp);
+    }
+    /* clear the set ahead of time */
+    FD_ZERO(&readfds); 
+    /* add descriptor */
+    FD_SET(sockfd, &readfds);
   }
 
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
@@ -203,6 +261,7 @@ void Mode_1(struct Inputs *userInput)
   check = fclose(fp);
   if (check == EOF) error("Error: Failed to close received file");
 
+  close(sockfd);
 } 
 
 
@@ -217,6 +276,9 @@ void Mode_2(struct Inputs *userInput)
   uint64_t diff;
   struct timespec start_in_loop, end_in_loop, start, end;
   struct udphdr *udph;
+  /* for time out */
+  fd_set readfds;
+  struct timeval tv;
   
   /* trying to add make its udp header!! */
   serv_len = sizeof(serv_addr);
@@ -280,35 +342,53 @@ void Mode_2(struct Inputs *userInput)
   /* cleaning our buffer and data */
   memset(buffer, 0, size);
   memset(data, 0, size + 28);
-  
+
+  /* clear the set ahead of time */
+  FD_ZERO(&readfds); 
+  /* add descriptor */
+  FD_SET(sockfd, &readfds); 
+  /* write in tv */
+  tv.tv_sec = userInput -> timeout_sec;
+  tv.tv_usec = userInput -> timeout_msec; 
+
   /* While loop to begin receiving */
   first_packet = 1;
   while(1) {
-    clock_gettime(CLOCK_REALTIME, &start_in_loop); 
 
-    /* Receive a packet */
-    check = recvfrom(sockfd, data, size+28, 0, (struct sockaddr *)&serv_addr, &serv_len); 
-    if (check < 0) { error("ERROR: recvfrom failed in client"); }
     /* Only if the buffer we get is not our dummy packet write to our file
     Tragedy is that we don't have enough time to check ip addresses
     to ascertain from all broadcasts who our server was again
     FYI: source address are byte 12-15 of IP address */
-    if(strcmp("connecting", data+28) != 0) {
-      if (first_packet == 0) {
-        clock_gettime(CLOCK_REALTIME, &end_in_loop);
-        /* writing to stats text file */
-        diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
-        fprintf(fp_stat, "Time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
-        printf("Time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
-       } else {
-        first_packet = 0;
-       }
-
-      clock_gettime(CLOCK_REALTIME, &start_in_loop); 
-      if (strcmp("End", data+28) == 0) break;
-      fputs(data+28, fp);  
-      bzero(data, size+28);
-      }  
+    check = select(sockfd + 1, &readfds, NULL, NULL, &tv);
+    if(check < 0) {
+      error("Error: error occured in select()");
+    } else if (check ==0) { /* reached our timeout */
+      printf("Connection Timed Out. Exitting.\n");
+      break;
+    } else {
+      /* Receive a packet */
+      check = recvfrom(sockfd, data, size+28, 0, (struct sockaddr *)&serv_addr, &serv_len); 
+      if (check < 0) error("ERROR: recvfrom failed in client");
+      if (strcmp("connecting", data+28) != 0) {
+        if (first_packet == 0) {
+          clock_gettime(CLOCK_REALTIME, &end_in_loop);
+          /* writing to stats text file */
+          diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
+          fprintf(fp_stat, "Time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+          printf("Time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+          } else {
+          first_packet = 0;
+          }
+          clock_gettime(CLOCK_REALTIME, &start_in_loop); 
+          if (strcmp("End", data+28) == 0) break;
+          fputs(data+28, fp);  
+          bzero(data, size+28);
+        }  
+    }
+    /* clear the set ahead of time */
+    FD_ZERO(&readfds); 
+    /* add descriptor */
+    FD_SET(sockfd, &readfds);
     }
 
   /* tells how big our file is */
@@ -324,24 +404,26 @@ void Mode_2(struct Inputs *userInput)
   /* closing all our files */
   fclose(fp_stat);
   fclose(fp);
+
+  close(sockfd);
 } 
 
 int main(int argc, char *argv[]) 
 { 
   Inputs userInput; 
-  int packet_size;
 
-  if (argc != 6) {
-    error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename>");
+  if (argc != 9) {
+    error("Not enough input arguments.\n Usage: ./proj1_client <mode> <server_address> <port> <received_filenam> <stats_filename> <packet_size (in bytes)> <timeout limit (in secs)> <timeout limit (in msecs)>");
   }
 
-  packet_size = 5000;
   userInput.mode = atoi(argv[1]);
   userInput.ip_addr = argv[2]; 
   userInput.portno = atoi(argv[3]);
   userInput.recv_file = argv[4];
   userInput.stats_filename = argv[5];
-  userInput.size = packet_size;
+  userInput.size = atoi(argv[6]);
+  userInput.timeout_sec = atoi(argv[7]);
+  userInput.timeout_msec = atoi(argv[8]);
 
   switch(userInput.mode){
     case 0: 

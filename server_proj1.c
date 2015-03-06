@@ -46,7 +46,10 @@ typedef struct Inputs {
 }Inputs;
 
 void Mode_0(struct Inputs *userInput){
-
+	/* 
+	if client has a timeout greater than 
+	server block gap, times out and server ends 
+	*/
 	int sockfd, newsockfd,  serv_len, cli_len, check, terminator_size;
 	struct sockaddr_in serv_addr, cli_addr; 
 	char *buffer, terminator[3];
@@ -109,8 +112,6 @@ void Mode_0(struct Inputs *userInput){
     check = fclose(fp);
     if (check == EOF) error("Error: Failed to close file.");
 }
-
-	/* time out function needed */
 
 void Mode_1(struct Inputs *userInput){
 
@@ -280,7 +281,6 @@ int main(int argc, char** argv) {
 	if (argc != 6) {
 		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
 	}
-
 
 	userInput.mode = atoi(argv[1]);
 	userInput.portno = atoi(argv[2]);
