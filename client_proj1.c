@@ -126,6 +126,10 @@ void Mode_0(struct Inputs *userInput)
 
 }
 
+/* need to add a time out function for recv from */
+/* mode 1 and mode 2 */
+
+/* also remember to close the socket !! */
 
 void Mode_1(struct Inputs *userInput)
 {
@@ -135,10 +139,8 @@ void Mode_1(struct Inputs *userInput)
   struct hostent *server; 
   char *buffer;
   FILE *fp, *fp_stat;
-  /* for clocking between packets */
-  struct timespec start_in_loop, end_in_loop;
-  /* for timing the entire connection */
-  struct timespec start, end; 
+  /* for clocking between packets and the entire connection */
+  struct timespec start_in_loop, end_in_loop, start, end;
   uint64_t diff;
 
   /* intializing variables */
@@ -175,7 +177,7 @@ void Mode_1(struct Inputs *userInput)
   while(1) {
     bzero(buffer, size);
     check = recvfrom(sockfd, (void *)buffer, size, 0, (struct sockaddr *)&serv_addr, &serv_len); 
-    if (check < 0) error("ERROR: recvfrom failed in client"); 
+    if (check < 0) error("Error: Recvfrom failed"); 
     if (first_packet == 0) {
       clock_gettime(CLOCK_REALTIME, &end_in_loop);
       /* writing to stats text file */

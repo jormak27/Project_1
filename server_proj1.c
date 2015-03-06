@@ -132,6 +132,7 @@ void Mode_1(struct Inputs *userInput){
 	check = bind(sockfd, (struct sockaddr *) &serv_addr, serv_len);
 	if (check < 0) error("ERROR: Error on binding"); 
 
+
 	/* open file */
 	fp = fopen(userInput -> filename, "r"); 
 	if (NULL==fp) error("ERROR: File did not open");
