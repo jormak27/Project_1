@@ -1,0 +1,172 @@
+/* 
+EE122 Project 1 
+================
+Phase 1: Server Program 
+
+Team Members
+	perror(msg);
+}
+
+/* Structure For Holding The User Inputs */ 
+typedef struct Inputs {
+	char *filename;
+	int packet_size;
+
+	/* 
+	if client has a timeout greater than 
+	server block gap, times out and server ends 
+	*/
+	int sockfd, newsockfd,  serv_len, cli_len, check, terminator_size;
+	struct sockaddr_in serv_addr, cli_addr; 
+	char *buffer, terminator[3];
+	FILE *fp;
+
+	cli_len = sizeof(cli_addr); 
+	serv_len = sizeof(serv_addr);
+	memcpy(terminator, "End", 3);
+	terminator_size = strlen(terminator);
+
+	buffer = (char *) malloc(userInput->packet_size);
+	if (buffer == NULL) error("Failed to allocate memory for given packet size");
+
+	/* make socket */
+	if (sockfd < 0) error("ERROR Opening socket"); 
+	
+	/* bind and listen */
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, serv_len);
+	if (check < 0) error("ERROR: Error on binding"); 
+
+	fp = fopen(userInput -> filename, "r");  
+	if (NULL==fp) error("ERROR: File did not open ");
+
+
+	while(1) {
+		rewind(fp); /* puts file pointer back to beginning */
+		bzero(buffer, userInput -> packet_size);
+
+		/* send our file */
+		while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+			if (check < 0) error("ERROR writing to the socket.");
+			if (userInput -> packet_delay == 0) {
+				usleep(5);
+			} else {
+				usleep(userInput -> packet_delay);
+			}
+		}
+
+		/* send our terminator */
+		if (check < 0) error("ERROR writing terminator to the socket.");
+
+    	printf("Received a client and sent file successfully.\n");
+    }
+}
+
+
+	int sockfd, serv_len, cli_len, check, terminator_size;
+	struct sockaddr_in serv_addr, cli_addr; 
+	FILE *fp; 
+
+	/* initialize known variables */
+	cli_len = sizeof(cli_addr); 
+	serv_len = sizeof(serv_addr);
+	memcpy(terminator, "End", 3);
+
+	buffer = (char *) malloc(userInput->packet_size);
+
+	if (0>sockfd) error("ERROR Opening socket"); 
+
+	serv_addr.sin_family = AF_INET;   
+	serv_addr.sin_addr.s_addr = INADDR_ANY; 
+	serv_addr.sin_port = htons(userInput -> portno);  
+
+
+	/* open file */
+	if (NULL==fp) error("ERROR: File did not open");
+
+	printf("Server successfully opened and awaiting clients.\n");
+
+	while(1) {
+		rewind(fp); /* puts file pointer back to beginning */		
+		
+		check = recvfrom(sockfd, buffer, userInput->packet_size, 0, (struct sockaddr *)&cli_addr, &cli_len);
+
+			bzero(buffer, userInput -> packet_size);
+
+			while(fgets(buffer, (userInput -> packet_size),fp) != NULL) {
+				check = sendto(sockfd, buffer, userInput -> packet_size,0,(struct sockaddr *)&cli_addr, cli_len);
+				if (check < 0) error("ERROR sending datagram");
+				if (userInput -> packet_delay == 0) {
+					usleep(5);
+				} else {
+					usleep(userInput -> packet_delay);
+				}
+			} 
+			check = sendto(sockfd, terminator, terminator_size, 0,(struct sockaddr *)&cli_addr, cli_len);
+			if (check < 0) error("ERROR sending terminator to the socket.");
+    		printf("Received a client and sent file successfully.\n");
+    	}
+    }
+    fclose(fp);
+}
+
+void Mode_2(struct Inputs *userInput){
+
+	int sockfd, clilen, check;
+	struct sockaddr_in serv_addr, cli_addr; 
+	char *buffer, *data, header[8], port[2];
+  	struct udphdr *udph;
+  	FILE *fp;
+  	uint16_t client_portno;
+
+  	/* initialize variables */
+	clilen = sizeof(cli_addr); 
+	buffer = (char *) malloc(userInput-> packet_size);
+	if (buffer == NULL) error("ERROR: Failed to allocate memory for buffer");
+	data = (char *) malloc((userInput->packet_size)+20+8);
+	if (data == NULL) error("ERROR: Failed to allocate memory for data");
+	/* clean */
+	memset(buffer, 0, userInput->packet_size);
+	memset(header, 0, 8);
+	memset(data, 0, (userInput->packet_size)+20+8);
+	memset(port, 0, 2);
+	
+	sockfd = socket(AF_INET, SOCK_RAW, IPPROTO_UDP);  
+	if (sockfd < 0) error("ERROR Opening socket");
+
+	bzero ((char*) &serv_addr, sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;   
+	serv_addr.sin_addr.s_addr = INADDR_ANY;  
+	serv_addr.sin_port = htons(userInput -> portno);
+	check = bind(sockfd, (struct sockaddr *) &serv_addr, sizeof(serv_addr));
+	if (check < 0) error("ERROR: Error on binding");
+				if (userInput -> packet_delay == 0) {
+					usleep(5);
+				} else {
+					usleep(userInput -> packet_delay);
+	 	}
+    }
+
+	
+	if (argc != 6) {
+		error("Not enough input arguments.\n Usage: ./proj1_server <mode> <port> <filename> <packet_size> <packet_delay>");
+	}
+
+	userInput.mode = atoi(argv[1]);
+	userInput.portno = atoi(argv[2]);
+	userInput.filename = argv[3];
+	userInput.packet_size = atoi(argv[4]);
+	userInput.packet_delay = atof(argv[5]);
+
+		Mode_0(&userInput);
+	case 1: 
+		Mode_1(&userInput);
+		break;
+	case 2: 
+		Mode_2(&userInput); 
+	default:
+		error("ERROR: Invalid Mode");
+		break;
+	}
+
+	return 0;
+}End
