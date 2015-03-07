@@ -233,7 +233,7 @@ void Mode_1(struct Inputs *userInput)
         clock_gettime(CLOCK_REALTIME, &end_in_loop);
         /* writing to stats text file */
         diff = BILLION * (end_in_loop.tv_sec - start_in_loop.tv_sec) + (end_in_loop.tv_nsec - start_in_loop.tv_nsec);
-        fprintf(fp_stat, "elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
+        fprintf(fp_stat, "%lu\n", (long unsigned int) diff); /* in nanoseconds */
         printf("elapsed time between packets = %lu nanoseconds or %d seconds (rounded)\n", (long unsigned int) diff, (unsigned int)(diff/BILLION));
       } else {
         first_packet = 0;
