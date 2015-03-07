@@ -270,7 +270,7 @@ void Mode_2(struct Inputs *userInput)
 {
   
   int sockfd, check, size, serv_len, first_packet;
-  struct sockaddr_in serv_addr, cli_addr; 
+  struct sockaddr_in serv_addr; 
   struct hostent *server; 
   char *buffer, header[8], *data;
   FILE *fp, *fp_stat; 
@@ -310,12 +310,12 @@ void Mode_2(struct Inputs *userInput)
   /* need to check this when we get to actual testing
    because could be working since we are on same host.
    let's see what happens when we actually test. */
-  bzero ((char*) &cli_addr, sizeof(cli_addr));
+/*  bzero ((char*) &cli_addr, sizeof(cli_addr));
   cli_addr.sin_family = AF_INET;   
   cli_addr.sin_addr.s_addr = INADDR_ANY;  
   cli_addr.sin_port = htons(55555);
   check = bind(sockfd, (struct sockaddr *) &serv_addr, serv_len);
-  if (check < 0) error("ERROR: Error on binding");
+  if (check < 0) error("ERROR: Error on binding"); */
 
   /* opening file to write received messages to */
   fp = fopen(userInput -> recv_file, "w");
