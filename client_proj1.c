@@ -142,6 +142,7 @@ void Mode_0(struct Inputs *userInput)
   }
 
   /* tells how big our file is */
+  fprintf(fp_stat, "Total size of file.txt = %ld bytes\n", ftell(fp));
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
 
   clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
@@ -247,7 +248,7 @@ void Mode_1(struct Inputs *userInput)
     /* add descriptor */
     FD_SET(sockfd, &readfds);
   }
-
+  fprintf(fp_stat, "Total size of file.txt = %ld bytes\n", ftell(fp));
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
   
   clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */
@@ -392,6 +393,7 @@ void Mode_2(struct Inputs *userInput)
     }
 
   /* tells how big our file is */
+  fprintf(fp_stat, "Total size of file.txt = %ld bytes\n", ftell(fp));
   printf("Total size of file.txt = %ld bytes\n", ftell(fp));
 
   clock_gettime(CLOCK_REALTIME, &end); /* mark the end time */

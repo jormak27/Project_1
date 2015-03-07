@@ -28,7 +28,6 @@ Phase 4 Client Program
 #include <sys/types.h>
 #include <unistd.h>
 
-
 typedef struct Inputs
 {
   char *ip_addr;
@@ -167,7 +166,7 @@ void cli2(struct Inputs *userInput)
   FD_ZERO(&readfds); 
   /* add descriptor */
   FD_SET(sockfd, &readfds);
-  /* write in tv */
+
   }
   printf("Client closed.\n"); 
 } 

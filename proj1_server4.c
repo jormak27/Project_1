@@ -1,4 +1,7 @@
-/* EE122 Server Program */
+/* 
+EE122 Project 1
+Phase 4 Server Program
+*/
 # include <stdio.h>
 # include <sys/types.h>
 # include <sys/socket.h>
