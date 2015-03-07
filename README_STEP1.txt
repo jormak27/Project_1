@@ -23,9 +23,8 @@ to run the client: ./client_proj1.exe <mode> <server> <port> <received_filename>
 
 Notes on how to Run
 =====
-1) Large files should work, but they may take a while to load so they may appear blank at first.
-2) To change packet sizes in client, simply change the value of client_buffer in the command line of client
-3) The total timeout is the timeout limit (in secs) + the timeout limit (in millisecs).
+1) To change packet sizes in client, simply change the value of client_buffer in the command line of client
+2) The total timeout is the timeout limit (in secs) + the timeout limit (in millisecs).
 
 SPECIAL NOTES
 =============
